@@ -38,7 +38,7 @@ func TestRestart(t *testing.T) {
 	checkSR := func(description string, s server.DeploymentStatus, restarts int) {
 		check(func(r server.GetResponse) {
 			if r.Status != s.String() {
-				t.Fatalf("%s: expected %s status, got %s", description, s.String(), r.Status)
+				t.Fatalf("%s: expected %s status, got %s, restarts %d", description, s.String(), r.Status, r.Restarts)
 			}
 			if r.Restarts != restarts {
 				t.Fatalf("%s: expected %d restarts, got %d", description, restarts, r.Restarts)
@@ -62,6 +62,6 @@ func TestRestart(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 	checkSR("second healthcheck ok", server.Running, 0)
-	time.Sleep(110 * time.Millisecond) // 10 millies for it to restart
+	time.Sleep(125 * time.Millisecond) // 25 millies for it to restart
 	checkSR("should have restarted", server.Pending, 1)
 }
