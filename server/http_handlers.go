@@ -20,14 +20,12 @@ type PostResponse struct {
 func Post(w http.ResponseWriter, r *http.Request) {
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
-		w.WriteHeader(400)
-		w.Write([]byte(err.Error()))
+		fetch.RespondError(w, 400, err)
 		return
 	}
 	confs, err := fetch.Unmarshal[[]common.Config](string(b))
 	if err != nil {
-		w.WriteHeader(400)
-		w.Write([]byte(fmt.Sprintf("invalid configuration: %s", err)))
+		fetch.RespondError(w, 400, fmt.Errorf("invalid configuration: %s", err))
 		return
 	}
 
@@ -42,20 +40,15 @@ func Post(w http.ResponseWriter, r *http.Request) {
 	for _, err := range errs {
 		errStr = errStr + err.Error() + "\n"
 	}
-	data, err := fetch.Marshal(&PostResponse{
+
+	err = fetch.Respond(w, &PostResponse{
 		Success: len(confs) - len(errs),
 		Failure: len(errs),
 		Error:   errStr,
 	})
 	if err != nil {
-		w.WriteHeader(500)
-		err = fmt.Errorf("failed to marshal PostResponse: %s", err)
-		log.Println(err)
-		w.Write([]byte(err.Error()))
-		return
+		log.Println("Responding PostResponse error", err)
 	}
-	w.WriteHeader(200)
-	w.Write([]byte(data))
 }
 
 func applyConfig(c common.Config) error {
@@ -120,18 +113,16 @@ type GetResponse struct {
 func Get(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if name == "" {
-		w.WriteHeader(400)
-		w.Write([]byte("name can't be empty"))
+		fetch.RespondError(w, 400, fmt.Errorf("name can't be empty"))
 		return
 	}
 	p, ok := getDeployment(name)
 	if !ok {
-		w.WriteHeader(400)
-		w.Write([]byte(fmt.Sprintf("name '%s' doesn't exist", name)))
+		fetch.RespondError(w, 400, fmt.Errorf("name '%s' doesn't exist", name))
 		return
 	}
 
-	data, err := fetch.Marshal(&GetResponse{
+	err := fetch.Respond(w, &GetResponse{
 		Pid:      p.pid,
 		Restarts: p.restarts,
 		Status:   p.status.String(),
@@ -139,35 +130,27 @@ func Get(w http.ResponseWriter, r *http.Request) {
 		Config:   p.config,
 	})
 	if err != nil {
-		w.WriteHeader(500)
-		err = fmt.Errorf("failed to marshal GetResponse: %s", err)
-		log.Println(err)
-		w.Write([]byte(err.Error()))
-		return
+		log.Println("Responding GetResponse error", err)
 	}
-	w.Write([]byte(data))
 }
 
 func Delete(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if name == "" {
-		w.WriteHeader(400)
-		w.Write([]byte("name can't be empty"))
+		fetch.RespondError(w, 400, fmt.Errorf(`name can't be empty`))
 		return
 	}
 
 	d, ok := getDeployment(name)
 	if !ok {
-		w.WriteHeader(404)
-		w.Write([]byte(fmt.Sprintf(`'%s' doesn't exist'`, name)))
+		fetch.RespondError(w, 404, fmt.Errorf(`'%s' doesn't exist'`, name))
 		return
 	}
 
 	if d.pid != 0 {
 		err := TerminateProcess(r.Context(), d.pid)
 		if err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte(err.Error()))
+			fetch.RespondError(w, 500, err)
 			return
 		}
 	}

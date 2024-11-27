@@ -47,7 +47,7 @@ func TestRestart(t *testing.T) {
 	}
 
 	// let the command run
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(25 * time.Millisecond)
 	// initDelay 0.1 seconds
 	checkSR("before first healthcheck", server.Pending, 0)
 	time.Sleep(100 * time.Millisecond)
@@ -62,6 +62,6 @@ func TestRestart(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 	checkSR("second healthcheck ok", server.Running, 0)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(110 * time.Millisecond) // 10 millies for it to restart
 	checkSR("should have restarted", server.Pending, 1)
 }
