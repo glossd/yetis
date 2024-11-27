@@ -20,7 +20,7 @@ var logNamePattern = regexp.MustCompile("^[a-zA-Z]+-(\\d+).log$")
 
 func launchProcess(c common.Config) (int, error) {
 	if c.Spec.Logdir == "stdout" {
-		return launchProcessWithOut(c, nil)
+		return launchProcessWithOut(c, nil, false)
 	} else {
 		logName := c.Spec.Name + "-" + strconv.Itoa(getLogCounter(c.Spec.Name, c.Spec.Logdir)+1) + ".log"
 		fullPath := c.Spec.Logdir + "/" + logName
@@ -28,17 +28,22 @@ func launchProcess(c common.Config) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("failed to create log file for '%s': %s", c.Spec.Name, err)
 		}
-		return launchProcessWithOut(c, file)
+		return launchProcessWithOut(c, file, false)
 	}
 }
 
-func launchProcessWithOut(c common.Config, w io.Writer) (int, error) {
+func launchProcessWithOut(c common.Config, w io.Writer, wait bool) (int, error) {
 	var ev strings.Builder
 	for i, envVar := range c.Spec.Env {
 		if i > 0 {
 			ev.WriteString(" ")
 		}
-		ev.WriteString(fmt.Sprintf("%s='%s'", envVar.Name, envVar.Value))
+		val := envVar.Value
+		if strings.Contains(envVar.Value, "'") {
+			// escaping single quotes.
+			val = strings.ReplaceAll(val, "'", `'\''`)
+		}
+		ev.WriteString(fmt.Sprintf("%s='%s'", envVar.Name, val))
 	}
 	shCmd := append([]string{"sh", "-c", ev.String() + " " + c.Spec.Cmd})
 	cmd := exec.Command(shCmd[0], shCmd[1:]...)
@@ -46,7 +51,12 @@ func launchProcessWithOut(c common.Config, w io.Writer) (int, error) {
 		cmd.Stdout = w
 	}
 	cmd.Dir = c.Spec.Workdir
-	err := cmd.Start()
+	var err error
+	if wait {
+		err = cmd.Run()
+	} else {
+		err = cmd.Start()
+	}
 	if err != nil {
 		err = fmt.Errorf("failed to start '%s' command: %s", c.Spec.Cmd, err)
 		log.Println(err)
