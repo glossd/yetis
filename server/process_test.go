@@ -26,13 +26,50 @@ func TestLaunchProcess_PassEnvVar(t *testing.T) {
 		Env:    []common.EnvVar{{Name: "YETIS_FOO", Value: "foo"}},
 	}}
 	var buf = &bytes.Buffer{}
-	_, err := launchProcessWithOut(cfg, buf)
+	_, err := launchProcessWithOut(cfg, buf, true)
 	if err != nil {
 		t.Error(err)
 	}
-	time.Sleep(5 * time.Millisecond)
 	res := strings.TrimSpace(buf.String())
 	if res != "foo" {
+		t.Errorf("expected foo instead of %s", res)
+	}
+}
+
+func TestLaunchProcess_PassJsonAsEnvVar(t *testing.T) {
+	jsonVal := `{"key": "value"}`
+	cfg := common.Config{Spec: common.Spec{
+		Name:   "default",
+		Cmd:    "printenv YETIS_FOO",
+		Logdir: "stdout",
+		Env:    []common.EnvVar{{Name: "YETIS_FOO", Value: jsonVal}},
+	}}
+	var buf = &bytes.Buffer{}
+	_, err := launchProcessWithOut(cfg, buf, true)
+	if err != nil {
+		t.Error(err)
+	}
+	res := strings.TrimSpace(buf.String())
+	if res != jsonVal {
+		t.Errorf("expected foo instead of %s", res)
+	}
+}
+
+func TestLaunchProcess_PassEnvVarWithSingleQuotes(t *testing.T) {
+	envVal := `foo'bar`
+	cfg := common.Config{Spec: common.Spec{
+		Name:   "default",
+		Cmd:    "printenv YETIS_FOO",
+		Logdir: "stdout",
+		Env:    []common.EnvVar{{Name: "YETIS_FOO", Value: envVal}},
+	}}
+	var buf = &bytes.Buffer{}
+	_, err := launchProcessWithOut(cfg, buf, true)
+	if err != nil {
+		t.Error(err)
+	}
+	res := strings.TrimSpace(buf.String())
+	if res != envVal {
 		t.Errorf("expected foo instead of %s", res)
 	}
 }
