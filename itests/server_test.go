@@ -26,6 +26,7 @@ func TestRestart(t *testing.T) {
 	if res.Success != 1 {
 		t.Fatalf("failed to apply config")
 	}
+	defer server.KillByPort(27000)
 
 	check := func(f func(server.GetResponse)) {
 		dr, err := fetch.Get[server.GetResponse]("/hello")

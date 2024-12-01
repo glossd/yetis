@@ -122,7 +122,7 @@ func IsProcessAlive(pid int) bool {
 }
 
 func GetPidByPort(port int) (int, error) {
-	cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%d", port), "-t")
+	cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%d", port), "-sTCP:LISTEN", "-t")
 	output, err := cmd.Output()
 	if err != nil {
 		if err.Error() == "exit status 1" {
@@ -135,6 +135,16 @@ func GetPidByPort(port int) (int, error) {
 	}
 
 	pids := strings.Split(string(output), "\n")
+	var filtered []string
+	for _, p := range pids {
+		if strings.TrimSpace(p) != "" {
+			filtered = append(filtered, p)
+		}
+	}
+	pids = filtered
+	if len(pids) > 1 {
+		fmt.Println("Warning: GetPidByPort has more than one pid, count=", len(pids))
+	}
 	pid, err := strconv.Atoi(pids[0])
 	if err != nil {
 		panic("failed to convert string pid to int, pid=" + pids[0] + "," + err.Error())

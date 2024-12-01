@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/glossd/fetch"
 	"log"
 	"net/http"
 	"os"
@@ -31,10 +32,15 @@ func Start() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /deployments", List)
-	mux.HandleFunc("GET /deployments/{name}", Get)
-	mux.HandleFunc("POST /deployments", Post)
-	mux.HandleFunc("DELETE /deployments/{name}", Delete)
+	fetch.SetDefaultHandlerConfig(fetch.HandlerConfig{
+		ErrorHook: func(err error) {
+			log.Println("fetch.Handler error", err)
+		},
+	})
+	mux.HandleFunc("GET /deployments", fetch.ToHandlerFunc(List))
+	mux.HandleFunc("GET /deployments/{name}", fetch.ToHandlerFunc(Get))
+	mux.HandleFunc("POST /deployments", fetch.ToHandlerFunc(Post))
+	mux.HandleFunc("DELETE /deployments/{name}", fetch.ToHandlerFunc(Delete))
 
 	runWithGracefulShutDown(mux)
 }

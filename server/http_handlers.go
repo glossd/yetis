@@ -1,13 +1,11 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
-	"io"
 	"log"
-	"net/http"
-	"text/tabwriter"
 	"time"
 )
 
@@ -17,18 +15,7 @@ type PostResponse struct {
 	Error   string
 }
 
-func Post(w http.ResponseWriter, r *http.Request) {
-	b, err := io.ReadAll(r.Body)
-	if err != nil {
-		fetch.RespondError(w, 400, err)
-		return
-	}
-	confs, err := fetch.Unmarshal[[]common.Config](string(b))
-	if err != nil {
-		fetch.RespondError(w, 400, fmt.Errorf("invalid configuration: %s", err))
-		return
-	}
-
+func Post(confs []common.Config) (PostResponse, error) {
 	var errs []error
 	for _, conf := range confs {
 		err := applyConfig(conf)
@@ -41,14 +28,11 @@ func Post(w http.ResponseWriter, r *http.Request) {
 		errStr = errStr + err.Error() + "\n"
 	}
 
-	err = fetch.Respond(w, &PostResponse{
+	return PostResponse{
 		Success: len(confs) - len(errs),
 		Failure: len(errs),
 		Error:   errStr,
-	})
-	if err != nil {
-		log.Println("Responding PostResponse error", err)
-	}
+	}, nil
 }
 
 func applyConfig(c common.Config) error {
@@ -80,14 +64,28 @@ func startDeployment(c common.Config) error {
 	return nil
 }
 
-func List(w http.ResponseWriter, r *http.Request) {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	// todo, this table sucks.
-	fmt.Fprintln(w, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND")
+type DeploymentView struct {
+	Name     string
+	Status   string
+	Pid      int
+	Restarts int
+	Age      string
+	Command  string
+}
+
+func List(_ fetch.Empty) ([]DeploymentView, error) {
+	var res []DeploymentView
 	rangeDeployments(func(name string, p deployment) {
-		fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s", name, p.status.String(), p.pid, p.restarts, ageSince(p.createdAt), p.config.Spec.Cmd))
+		res = append(res, DeploymentView{
+			Name:     name,
+			Status:   p.status.String(),
+			Pid:      p.pid,
+			Restarts: p.restarts,
+			Age:      ageSince(p.createdAt),
+			Command:  p.config.Spec.Cmd,
+		})
 	})
-	tw.Flush()
+	return res, nil
 }
 
 func ageSince(t time.Time) string {
@@ -99,7 +97,10 @@ func ageSince(t time.Time) string {
 	if age > time.Hour {
 		return fmt.Sprintf("%dh%dm", int(age.Hours()), int(age.Minutes())-(int(age.Hours())*60))
 	}
-	return fmt.Sprintf("%dm%ds", int(age.Minutes()), int(age.Seconds())-(int(age.Minutes())*60))
+	if age > time.Minute {
+		return fmt.Sprintf("%dm%ds", int(age.Minutes()), int(age.Seconds())-(int(age.Minutes())*60))
+	}
+	return fmt.Sprintf("%ds", int(age.Seconds()))
 }
 
 type GetResponse struct {
@@ -110,49 +111,49 @@ type GetResponse struct {
 	Config   common.Config
 }
 
-func Get(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
-	if name == "" {
-		fetch.RespondError(w, 400, fmt.Errorf("name can't be empty"))
-		return
+type GetRequest struct {
+	Name string `pathval:"name"`
+}
+
+func Get(r GetRequest) (*GetResponse, error) {
+	if r.Name == "" {
+		return nil, fmt.Errorf("name can't be empty")
 	}
-	p, ok := getDeployment(name)
+	p, ok := getDeployment(r.Name)
 	if !ok {
-		fetch.RespondError(w, 400, fmt.Errorf("name '%s' doesn't exist", name))
-		return
+		return nil, fmt.Errorf("name '%s' doesn't exist", r.Name)
 	}
 
-	err := fetch.Respond(w, &GetResponse{
+	return &GetResponse{
 		Pid:      p.pid,
 		Restarts: p.restarts,
 		Status:   p.status.String(),
 		Age:      ageSince(p.createdAt),
 		Config:   p.config,
-	})
-	if err != nil {
-		log.Println("Responding GetResponse error", err)
-	}
+	}, nil
 }
 
-func Delete(w http.ResponseWriter, r *http.Request) {
-	name := r.PathValue("name")
+type DeleteRequest struct {
+	Name string `pathval:"name"`
+}
+
+func Delete(r DeleteRequest) (*fetch.Empty, error) {
+	name := r.Name
 	if name == "" {
-		fetch.RespondError(w, 400, fmt.Errorf(`name can't be empty`))
-		return
+		return nil, fmt.Errorf(`name can't be empty`)
 	}
 
 	d, ok := getDeployment(name)
 	if !ok {
-		fetch.RespondError(w, 404, fmt.Errorf(`'%s' doesn't exist'`, name))
-		return
+		return nil, fmt.Errorf(`'%s' doesn't exist'`, name)
 	}
 
 	if d.pid != 0 {
-		err := TerminateProcess(r.Context(), d.pid)
+		err := TerminateProcess(context.Background(), d.pid)
 		if err != nil {
-			fetch.RespondError(w, 500, err)
-			return
+			return nil, err
 		}
 	}
 	deleteDeployment(name)
+	return &fetch.Empty{}, nil
 }
