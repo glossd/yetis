@@ -20,7 +20,7 @@ apt install yetis
 ```
 
 ## Commands
-*Must run as `root`
+*You don't need to be `root`.
 ### Start Yetis server
 ```shell
 yetis start

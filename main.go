@@ -59,7 +59,7 @@ func main() {
 	case "help":
 		printHelp()
 	default:
-		fmt.Printf("%s is not a valid command\n", args[0])
+		fmt.Printf("%s is not a valid command\n", args[1])
 		printHelp()
 	}
 }

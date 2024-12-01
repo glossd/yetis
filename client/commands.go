@@ -7,7 +7,9 @@ import (
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/server"
+	"os"
 	"sigs.k8s.io/yaml"
+	"text/tabwriter"
 	"time"
 )
 
@@ -17,11 +19,16 @@ func init() {
 }
 
 func List() {
-	res, err := fetch.Get[string]("")
+	res, err := fetch.Get[[]server.DeploymentView]("")
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Println(res)
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(tw, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND")
+		for _, d := range res {
+			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command))
+		}
+		tw.Flush()
 	}
 }
 
