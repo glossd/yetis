@@ -4,6 +4,7 @@ import (
 	"github.com/glossd/fetch"
 	_ "github.com/glossd/yetis/client"
 	"github.com/glossd/yetis/common"
+	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/server"
 	"os"
 	"testing"
@@ -26,7 +27,7 @@ func TestRestart(t *testing.T) {
 	if res.Success != 1 {
 		t.Fatalf("failed to apply config")
 	}
-	defer server.KillByPort(27000)
+	defer unix.KillByPort(27000)
 
 	check := func(f func(server.GetResponse)) {
 		dr, err := fetch.Get[server.GetResponse]("/hello")
@@ -52,12 +53,12 @@ func TestRestart(t *testing.T) {
 	// initDelay 0.1 seconds
 	checkSR("before first healthcheck", server.Pending, 0)
 	time.Sleep(100 * time.Millisecond)
-	if !server.IsPortOpen(27000, time.Second) {
+	if !common.IsPortOpen(27000, time.Second) {
 		t.Errorf("port 27000 is closed")
 	}
 	checkSR("first healthcheck ok", server.Running, 0)
 
-	err = server.KillByPort(27000)
+	err = unix.KillByPort(27000)
 	if err != nil {
 		t.Fatalf("failed to kill: %s", err)
 	}

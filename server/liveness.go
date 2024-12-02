@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"github.com/glossd/yetis/common"
+	"github.com/glossd/yetis/common/unix"
 	"log"
 	"sync"
 	"time"
@@ -48,7 +49,7 @@ func checkLiveness(c common.Config, restartsLimit int) bool {
 		// todo add YETIS_PORT
 	}
 	// Remove 10 milliseconds for everything to process and wait for the new tick.
-	portOpen := IsPortOpen(port, c.Spec.LivenessProbe.PeriodDuration()-10*time.Millisecond)
+	portOpen := isPortOpen(port, c.Spec.LivenessProbe.PeriodDuration()-10*time.Millisecond)
 	v, ok := thresholdMap.Load(c.Spec.Name)
 	if !ok {
 		v = Threshold{}
@@ -81,7 +82,7 @@ func checkLiveness(c common.Config, restartsLimit int) bool {
 		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", c.Spec.Name)
 		updateDeploymentStatus(c.Spec.Name, Terminating)
 		ctx, cancelCtx := context.WithTimeout(context.Background(), time.Minute)
-		err := TerminateProcess(ctx, p.pid)
+		err := unix.TerminateProcess(ctx, p.pid)
 		if err != nil {
 			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", c.Spec.Name, p.pid)
 		} else {
@@ -102,4 +103,13 @@ func checkLiveness(c common.Config, restartsLimit int) bool {
 		updateDeploymentStatus(c.Spec.Name, Running)
 	}
 	return false
+}
+
+var isPortOpenMock *bool
+
+func isPortOpen(port int, dur time.Duration) bool {
+	if isPortOpenMock != nil {
+		return *isPortOpenMock
+	}
+	return common.IsPortOpen(port, dur)
 }

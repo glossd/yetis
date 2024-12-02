@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
+	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/server"
 	"os"
 	"sigs.k8s.io/yaml"
@@ -78,11 +79,11 @@ func Apply(path string) {
 }
 
 func IsServerRunning() bool {
-	return server.IsPortOpen(server.YetisServerPort, time.Second)
+	return common.IsPortOpen(server.YetisServerPort, time.Second)
 }
 
 func ShutdownServer() {
-	pid, err := server.GetPidByPort(server.YetisServerPort)
+	pid, err := unix.GetPidByPort(server.YetisServerPort)
 	if err != nil {
 		fmt.Println("Couldn't get Yetis pid:", err)
 		return
@@ -90,7 +91,7 @@ func ShutdownServer() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err = server.TerminateProcess(ctx, pid)
+	err = unix.TerminateProcess(ctx, pid)
 	if err != nil {
 		fmt.Println("Failed to stop Yetis server", err)
 	} else {

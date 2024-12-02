@@ -1,19 +1,15 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"github.com/glossd/yetis/common"
 	"io"
 	"log"
-	"net"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
-	"time"
 )
 
 var logNamePattern = regexp.MustCompile("^[a-zA-Z]+-(\\d+).log$")
@@ -69,119 +65,6 @@ func launchProcessWithOut(c common.Config, w io.Writer, wait bool) (int, error) 
 		return 0, fmt.Errorf("pid is zero")
 	}
 	return pid, nil
-}
-
-// Blocking. Once context expires, it sends SIGKILL.
-func TerminateProcess(ctx context.Context, pid int) error {
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return fmt.Errorf("couldn't find process %d: %s", pid, err)
-	}
-
-	// todo delete all children processes created by the command.
-	err = process.Signal(syscall.SIGTERM)
-	if err != nil {
-		return fmt.Errorf("failed to terminate %d process: %s", pid, err)
-	}
-
-	// Wait until the process terminates
-	for {
-		select {
-		case <-ctx.Done():
-			err = process.Signal(syscall.SIGKILL)
-			if err != nil {
-				log.Printf("failed to kill %d process: %s\n", pid, err)
-			}
-			return nil
-		default:
-			if !IsProcessAlive(process.Pid) {
-				return nil
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-}
-
-func IsProcessAlive(pid int) bool {
-	// 'ps -o pid= -p $PID' command works on MacOS and Linux
-	res, err := exec.Command("ps", "-o", "pid=", "-o", "command=", "-p", strconv.Itoa(pid)).Output()
-	if err != nil {
-		if err.Error() != "exit status 1" {
-			log.Printf("ps -o pid= -p failed: %s\n", err)
-		}
-		return false
-	}
-	if len(res) > 0 {
-		if strings.HasSuffix(strings.TrimSpace(string(res)), "<defunct>") {
-			return false
-		}
-		fmt.Printf("IsProcessAlive output: %s\n", res)
-		return true
-	}
-	return false
-}
-
-func GetPidByPort(port int) (int, error) {
-	cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%d", port), "-sTCP:LISTEN", "-t")
-	output, err := cmd.Output()
-	if err != nil {
-		if err.Error() == "exit status 1" {
-			return 0, fmt.Errorf("port %d is closed", port)
-		}
-		return 0, fmt.Errorf("searching for port %d: %s", port, err)
-	}
-	if len(output) == 0 {
-		return 0, fmt.Errorf("port %d is closed", port)
-	}
-
-	pids := strings.Split(string(output), "\n")
-	var filtered []string
-	for _, p := range pids {
-		if strings.TrimSpace(p) != "" {
-			filtered = append(filtered, p)
-		}
-	}
-	pids = filtered
-	if len(pids) > 1 {
-		fmt.Println("Warning: GetPidByPort has more than one pid, count=", len(pids))
-	}
-	pid, err := strconv.Atoi(pids[0])
-	if err != nil {
-		panic("failed to convert string pid to int, pid=" + pids[0] + "," + err.Error())
-	}
-	return pid, nil
-}
-
-func KillByPort(port int) error {
-	pid, err := GetPidByPort(port)
-	if err != nil {
-		return err
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return err
-	}
-	err = proc.Kill()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-var isPortOpenMock *bool
-
-// IsPortOpen tries to establish a TCP connection to the specified address and port
-func IsPortOpen(port int, timeout time.Duration) bool {
-	if isPortOpenMock != nil {
-		return *isPortOpenMock
-	}
-	address := fmt.Sprintf("127.0.0.1:%d", port)
-	conn, err := net.DialTimeout("tcp", address, timeout)
-	if err != nil {
-		return false
-	}
-	conn.Close()
-	return true
 }
 
 func getLogCounter(name, logDir string) int {

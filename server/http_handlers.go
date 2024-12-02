@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
+	"github.com/glossd/yetis/common/unix"
 	"log"
 	"time"
 )
@@ -149,7 +150,7 @@ func Delete(r DeleteRequest) (*fetch.Empty, error) {
 	}
 
 	if d.pid != 0 {
-		err := TerminateProcess(context.Background(), d.pid)
+		err := unix.TerminateProcess(context.Background(), d.pid)
 		if err != nil {
 			return nil, err
 		}
