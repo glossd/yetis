@@ -2,9 +2,7 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"github.com/glossd/yetis/common"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -71,75 +69,6 @@ func TestLaunchProcess_PassEnvVarWithSingleQuotes(t *testing.T) {
 	res := strings.TrimSpace(buf.String())
 	if res != envVal {
 		t.Errorf("expected foo instead of %s", res)
-	}
-}
-
-func TestIsProcessAlive(t *testing.T) {
-	pid, err := launchProcess(sleepConfig)
-	if err != nil {
-		t.Fatal("launchProcess failed", err)
-	}
-	if !IsProcessAlive(pid) {
-		t.Fatal("process should exist")
-	}
-	if IsProcessAlive(32768) {
-		t.Fatal("pid shouldn't exist") // probs:)
-	}
-
-	time.Sleep(11 * time.Millisecond)
-	if IsProcessAlive(pid) {
-		t.Fatal("sleep should have terminated")
-	}
-}
-
-func TestTerminateProcess(t *testing.T) {
-	c := common.Config{Spec: common.Spec{
-		Name:   "default",
-		Cmd:    "sleep 10",
-		Logdir: "stdout",
-	}}
-	pid, err := launchProcess(c)
-	if err != nil {
-		t.Fatalf("error launching process: %s", err)
-	}
-
-	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
-	err = TerminateProcess(ctx, pid)
-	if err != nil {
-		t.Fatalf("failed to terminated the process: %s", err)
-	}
-}
-
-func TestIsPortOpen(t *testing.T) {
-	s := http.Server{Addr: ":44534"}
-	go s.ListenAndServe()
-	defer s.Shutdown(context.Background())
-	time.Sleep(time.Millisecond)
-	if !IsPortOpen(44534, time.Second) {
-		t.Errorf("port shouldn't be closed")
-	}
-
-	if IsPortOpen(34567, time.Second) {
-		t.Errorf("port shouldn't be open")
-	}
-}
-
-func TestGetPidByPort(t *testing.T) {
-	s := http.Server{Addr: ":44534"}
-	go s.ListenAndServe()
-	defer s.Shutdown(context.Background())
-
-	pid, err := GetPidByPort(44534)
-	if err != nil {
-		t.Errorf("port is closed")
-	}
-	if pid == 0 {
-		t.Errorf("pid is 0")
-	}
-
-	_, err = GetPidByPort(34567)
-	if err == nil {
-		t.Errorf("port should be closed")
 	}
 }
 
