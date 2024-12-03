@@ -37,7 +37,7 @@ yetis apply -f config.yaml
 #### List deployments
 `yetis list` will show the list of the processes.    
 Add flag `-w` to watch the updates
-![](.github/yetis-list-watch.gif)
+![](.github/yetis-list-w.gif)
 
 #### Full list of commands
 ```
