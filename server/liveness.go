@@ -111,5 +111,5 @@ func isPortOpen(port int, dur time.Duration) bool {
 	if isPortOpenMock != nil {
 		return *isPortOpenMock
 	}
-	return common.IsPortOpen(port, dur)
+	return common.IsPortOpenTimeout(port, dur)
 }

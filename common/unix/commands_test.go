@@ -48,11 +48,11 @@ func TestIsPortOpen(t *testing.T) {
 	go s.ListenAndServe()
 	defer s.Shutdown(context.Background())
 	time.Sleep(time.Millisecond)
-	if !common.IsPortOpen(44534, time.Second) {
+	if !common.IsPortOpen(44534) {
 		t.Errorf("port shouldn't be closed")
 	}
 
-	if common.IsPortOpen(34567, time.Second) {
+	if common.IsPortOpen(34567) {
 		t.Errorf("port shouldn't be open")
 	}
 }
