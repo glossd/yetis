@@ -34,8 +34,8 @@ yetis apply -f config.yaml
 ``` 
 [Configuration](#file-configuration)  
 
-#### List your deployments
-`yetis list`
+#### List deployments
+`yetis list` will show the list of the processes.    
 Add flag `-w` to watch the updates
 ![](.github/yetis-list-watch.gif)
 
