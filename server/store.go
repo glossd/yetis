@@ -123,3 +123,11 @@ func rangeDeployments(f func(name string, p deployment)) {
 		return true
 	})
 }
+
+func deploymentsNum() int {
+	var num int
+	rangeDeployments(func(name string, p deployment) {
+		num++
+	})
+	return num
+}

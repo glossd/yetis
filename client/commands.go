@@ -114,7 +114,7 @@ func Apply(path string) {
 }
 
 func IsServerRunning() bool {
-	return common.IsPortOpen(server.YetisServerPort, time.Second)
+	return common.IsPortOpen(server.YetisServerPort)
 }
 
 func ShutdownServer() {
@@ -124,7 +124,7 @@ func ShutdownServer() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	err = unix.TerminateProcess(ctx, pid)
 	if err != nil {
