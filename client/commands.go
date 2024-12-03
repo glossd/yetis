@@ -20,13 +20,13 @@ func init() {
 }
 
 func List() {
-	res, err := fetch.Get[[]server.DeploymentView]("")
+	views, err := fetch.Get[[]server.DeploymentView]("")
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(tw, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND")
-		for _, d := range res {
+		for _, d := range views {
 			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command))
 		}
 		tw.Flush()

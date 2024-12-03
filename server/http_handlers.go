@@ -135,6 +135,7 @@ func Get(r GetRequest) (*GetResponse, error) {
 }
 
 type DeleteRequest struct {
+	Ctx  context.Context
 	Name string `pathval:"name"`
 }
 
@@ -150,7 +151,7 @@ func Delete(r DeleteRequest) (*fetch.Empty, error) {
 	}
 
 	if d.pid != 0 {
-		err := unix.TerminateProcess(context.Background(), d.pid)
+		err := unix.TerminateProcess(r.Ctx, d.pid)
 		if err != nil {
 			return nil, err
 		}

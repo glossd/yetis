@@ -37,7 +37,7 @@ yetis apply -f config.yaml
 #### List your deployments
 `yetis list`
 todo: insert pic  
-todo:`yetis list -f` to watch the list
+todo:`yetis list -w` to watch the list
 
 #### Full list of commands
 ```
