@@ -25,7 +25,7 @@ apt install yetis
 ```shell
 yetis start
 ```
-Add & at the end to start in the background.
+Add `&` at the end to start in the background.
 WIP systemctl
 ### Available commands
 #### Deploy your process:
@@ -34,10 +34,10 @@ yetis apply -f config.yaml
 ``` 
 [Configuration](#file-configuration)  
 
-#### List your deployments
-`yetis list`  
-todo insert pic   
-Flag `-w` allows you to watch the updates
+#### List deployments
+`yetis list` will show the list of the processes.    
+Add flag `-w` to watch the updates
+![](.github/yetis-list-w.gif)
 
 #### Full list of commands
 ```
