@@ -35,9 +35,9 @@ yetis apply -f config.yaml
 [Configuration](#file-configuration)  
 
 #### List your deployments
-`yetis list`
-todo: insert pic  
-todo:`yetis list -w` to watch the list
+`yetis list`  
+todo insert pic   
+Flag `-w` allows you to watch the updates
 
 #### Full list of commands
 ```

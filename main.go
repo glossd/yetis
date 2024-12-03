@@ -33,7 +33,18 @@ func main() {
 	case "shutdown":
 		client.ShutdownServer()
 	case "list":
-		client.List()
+		if len(args) == 2 {
+			client.List()
+			return
+		}
+		switch args[2] {
+		case "-w":
+			client.ListWatch()
+		default:
+			fmt.Print(`The flags for list command are:
+	-w  watches for new updates
+`)
+		}
 	case "describe":
 		if len(os.Args) < 3 {
 			fmt.Println("provide the name of the process")

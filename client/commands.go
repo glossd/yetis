@@ -9,7 +9,9 @@ import (
 	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/server"
 	"os"
+	"os/signal"
 	"sigs.k8s.io/yaml"
+	"syscall"
 	"text/tabwriter"
 	"time"
 )
@@ -20,9 +22,14 @@ func init() {
 }
 
 func List() {
+	printDeploymentTable()
+}
+
+func printDeploymentTable() (int, error) {
 	views, err := fetch.Get[[]server.DeploymentView]("")
 	if err != nil {
 		fmt.Println(err)
+		return 0, err
 	} else {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(tw, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND")
@@ -30,6 +37,34 @@ func List() {
 			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command))
 		}
 		tw.Flush()
+		return len(views), nil
+	}
+}
+
+const upLine = "\033[A"
+
+func ListWatch() {
+	var returnToStart string
+	go func() {
+		// prevent 'signal: interrupt' message from being printed
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+		<-signalChan
+		os.Exit(0)
+	}()
+	for {
+		os.Stdout.WriteString(returnToStart)
+		returnToStart = ""
+		num, err := printDeploymentTable()
+		if err != nil {
+			return
+		}
+		returnToStart = upLine
+		for i := 0; i < num; i++ {
+			returnToStart += upLine
+		}
+		returnToStart += "\r"
+		time.Sleep(time.Second)
 	}
 }
 
