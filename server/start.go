@@ -45,6 +45,8 @@ func Start() {
 	runWithGracefulShutDown(mux)
 }
 
+var quit = make(chan os.Signal)
+
 // https://github.com/gin-gonic/examples/blob/master/graceful-shutdown/graceful-shutdown/server.go
 func runWithGracefulShutDown(r *http.ServeMux) {
 	srv := &http.Server{
@@ -59,9 +61,6 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server with
-	// a timeout of 5 seconds.
-	quit := make(chan os.Signal)
 	// kill (no param) default send syscall.SIGTERM
 	// kill -2 is syscall.SIGINT
 	// kill -9 is syscall.SIGKILL but can't be catch, so don't need add it
@@ -69,8 +68,8 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 	<-quit
 	log.Println("Shutting down Yetis server...")
 
-	// The context is used to inform the server it has 5 seconds to finish
-	// the request it is currently handling
+	deleteDeploymentsGracefully()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
@@ -78,4 +77,24 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 	}
 
 	log.Println("Yetis server exiting")
+}
+
+func Stop() {
+	quit <- syscall.SIGTERM
+}
+
+func deleteDeploymentsGracefully() {
+	rangeDeployments(func(name string, p deployment) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, err := Delete(DeleteRequest{
+			Ctx:  ctx,
+			Name: name,
+		})
+		if err == nil {
+			log.Println("Deleted", name)
+		} else {
+			log.Printf("Failed to delete %s: %s\n", name, err)
+		}
+	})
 }
