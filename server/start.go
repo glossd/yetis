@@ -85,7 +85,7 @@ func Stop() {
 
 func deleteDeploymentsGracefully() {
 	rangeDeployments(func(name string, p deployment) {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_, err := Delete(DeleteRequest{
 			Ctx:  ctx,
