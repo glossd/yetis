@@ -45,13 +45,7 @@ const upLine = "\033[A"
 
 func ListWatch() {
 	var returnToStart string
-	go func() {
-		// prevent 'signal: interrupt' message from being printed
-		signalChan := make(chan os.Signal, 1)
-		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-		<-signalChan
-		os.Exit(0)
-	}()
+	preventSignalInterrupt()
 	for {
 		os.Stdout.WriteString(returnToStart)
 		returnToStart = ""
@@ -66,6 +60,16 @@ func ListWatch() {
 		returnToStart += "\r"
 		time.Sleep(time.Second)
 	}
+}
+
+func preventSignalInterrupt() {
+	go func() {
+		// prevent 'signal: interrupt' message from being printed on exit with Ctr^C
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+		<-signalChan
+		os.Exit(0)
+	}()
 }
 
 func Describe(name string) {
@@ -114,20 +118,19 @@ func Apply(path string) {
 	}
 }
 
-func Logs(name string) {
+func Logs(name string, stream bool) {
 	r, err := fetch.Get[server.GetResponse]("/" + name)
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		err := unix.Cat(r.LogPath)
+		if stream {
+			preventSignalInterrupt()
+		}
+		err := unix.Cat(r.LogPath, stream)
 		if err != nil {
 			fmt.Println("failed to print log file", err)
 		}
 	}
-}
-
-func LogsStream(name string) {
-
 }
 
 func IsServerRunning() bool {

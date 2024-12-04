@@ -54,9 +54,9 @@ func main() {
 				needName()
 				return
 			}
-			client.LogsStream(os.Args[3])
+			client.Logs(os.Args[3], true)
 		default:
-			client.Logs(os.Args[2])
+			client.Logs(os.Args[2], false)
 		}
 	case "describe":
 		if len(os.Args) < 3 {

@@ -109,7 +109,10 @@ func KillByPort(port int) error {
 	return nil
 }
 
-func Cat(filePath string) error {
+func Cat(filePath string, stream bool) error {
+	return printFileTo(filePath, os.Stdout, stream)
+}
+func printFileTo(filePath string, w io.Writer, stream bool) error {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("open file: %s", err)
@@ -121,12 +124,16 @@ func Cat(filePath string) error {
 			return err
 		}
 		if n == 0 {
-			break
+			if stream {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			} else {
+				return nil
+			}
 		}
-		_, err = os.Stdout.Write(buf[:n])
+		_, err = w.Write(buf[:n])
 		if err != nil {
 			return err
 		}
 	}
-	return nil
 }
