@@ -1,12 +1,14 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
 	"log"
+	"slices"
 	"time"
 )
 
@@ -86,7 +88,15 @@ func List(_ fetch.Empty) ([]DeploymentView, error) {
 			Command:  p.config.Spec.Cmd,
 		})
 	})
+
+	sortDeployments(res)
 	return res, nil
+}
+
+func sortDeployments(res []DeploymentView) {
+	slices.SortFunc(res, func(a, b DeploymentView) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 }
 
 func ageSince(t time.Time) string {
