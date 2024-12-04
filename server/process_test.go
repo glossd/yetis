@@ -95,15 +95,15 @@ func TestLogRotation(t *testing.T) {
 		LivenessProbe: common.Probe{TcpSocket: common.TcpSocket{Port: 1234}},
 		Logdir:        "./logrotation",
 	}}
-	_, err = launchProcess(config)
+	_, _, err = launchProcess(config)
 	assert(t, err, nil)
 	counter := getLogCounter("hello", "./logrotation")
 	assert(t, counter, 0)
-	_, err = launchProcess(config)
+	_, _, err = launchProcess(config)
 	assert(t, err, nil)
 	counter = getLogCounter("hello", "./logrotation")
 	assert(t, counter, 1)
-	_, err = launchProcess(config)
+	_, _, err = launchProcess(config)
 	assert(t, err, nil)
 	counter = getLogCounter("hello", "./logrotation")
 	assert(t, counter, 2)

@@ -45,13 +45,7 @@ const upLine = "\033[A"
 
 func ListWatch() {
 	var returnToStart string
-	go func() {
-		// prevent 'signal: interrupt' message from being printed
-		signalChan := make(chan os.Signal, 1)
-		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-		<-signalChan
-		os.Exit(0)
-	}()
+	preventSignalInterrupt()
 	for {
 		os.Stdout.WriteString(returnToStart)
 		returnToStart = ""
@@ -68,6 +62,16 @@ func ListWatch() {
 	}
 }
 
+func preventSignalInterrupt() {
+	go func() {
+		// prevent 'signal: interrupt' message from being printed on exit with Ctr^C
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+		<-signalChan
+		os.Exit(0)
+	}()
+}
+
 func Describe(name string) {
 	r, err := fetch.Get[server.GetResponse]("/" + name)
 	if err != nil {
@@ -78,6 +82,7 @@ func Describe(name string) {
 		buf.WriteString(fmt.Sprintf("Restarts: %d\n", r.Restarts))
 		buf.WriteString(fmt.Sprintf("Status: %s\n", r.Status))
 		buf.WriteString(fmt.Sprintf("Age: %s\n", r.Age))
+		buf.WriteString(fmt.Sprintf("Log Path: %s\n", r.LogPath))
 		c, err := yaml.Marshal(r.Config)
 		if err != nil {
 			panic("failed to marshal config" + err.Error())
@@ -109,6 +114,21 @@ func Apply(path string) {
 		fmt.Println(fmt.Sprintf("Successfully applied %d out of %d", res.Success, res.Success+res.Failure))
 		if res.Error != "" {
 			fmt.Println(fmt.Sprintf("Errors: %s", res.Error))
+		}
+	}
+}
+
+func Logs(name string, stream bool) {
+	r, err := fetch.Get[server.GetResponse]("/" + name)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		if stream {
+			preventSignalInterrupt()
+		}
+		err := unix.Cat(r.LogPath, stream)
+		if err != nil {
+			fmt.Println("failed to print log file", err)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package unix
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -106,4 +107,33 @@ func KillByPort(port int) error {
 		return err
 	}
 	return nil
+}
+
+func Cat(filePath string, stream bool) error {
+	return printFileTo(filePath, os.Stdout, stream)
+}
+func printFileTo(filePath string, w io.Writer, stream bool) error {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("open file: %s", err)
+	}
+	buf := make([]byte, 1024)
+	for {
+		n, err := f.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if n == 0 {
+			if stream {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			} else {
+				return nil
+			}
+		}
+		_, err = w.Write(buf[:n])
+		if err != nil {
+			return err
+		}
+	}
 }
