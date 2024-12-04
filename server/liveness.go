@@ -90,12 +90,12 @@ func checkLiveness(c common.Config, restartsLimit int) bool {
 		}
 		cancelCtx()
 		updateDeploymentStatus(c.Spec.Name, Pending)
-		updateDeploymentPid(c.Spec.Name, 0)
-		pid, err := launchProcess(c)
+		updateDeployment(c.Spec.Name, 0, "", false)
+		pid, logPath, err := launchProcess(c)
 		if err != nil {
 			log.Printf("failed to restart deployment '%s': %s\n", c.Spec.Name, err)
 		}
-		incDeploymentRestarts(c.Spec.Name, pid)
+		updateDeployment(c.Spec.Name, pid, logPath, true)
 		thresholdMap.Delete(c.Spec.Name)
 		return false
 	}

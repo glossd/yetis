@@ -78,6 +78,7 @@ func Describe(name string) {
 		buf.WriteString(fmt.Sprintf("Restarts: %d\n", r.Restarts))
 		buf.WriteString(fmt.Sprintf("Status: %s\n", r.Status))
 		buf.WriteString(fmt.Sprintf("Age: %s\n", r.Age))
+		buf.WriteString(fmt.Sprintf("Log Path: %s\n", r.LogPath))
 		c, err := yaml.Marshal(r.Config)
 		if err != nil {
 			panic("failed to marshal config" + err.Error())
@@ -111,6 +112,22 @@ func Apply(path string) {
 			fmt.Println(fmt.Sprintf("Errors: %s", res.Error))
 		}
 	}
+}
+
+func Logs(name string) {
+	r, err := fetch.Get[server.GetResponse]("/" + name)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		err := unix.Cat(r.LogPath)
+		if err != nil {
+			fmt.Println("failed to print log file", err)
+		}
+	}
+}
+
+func LogsStream(name string) {
+
 }
 
 func IsServerRunning() bool {

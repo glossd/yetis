@@ -14,6 +14,7 @@ var deploymentStore = sync.Map{}
 
 type deployment struct {
 	pid       int
+	logPath   string
 	restarts  int
 	status    DeploymentStatus
 	createdAt time.Time
@@ -53,7 +54,7 @@ func saveDeployment(c common.Config, pid int) bool {
 	return true
 }
 
-func updateDeploymentPid(name string, pid int) error {
+func updateDeployment(name string, pid int, logPath string, incRestarts bool) error {
 	writeLock.Lock()
 	defer writeLock.Unlock()
 	d, ok := getDeployment(name)
@@ -61,22 +62,12 @@ func updateDeploymentPid(name string, pid int) error {
 		return fmt.Errorf("deployment %s doesn't exist", name)
 	}
 	d.pid = pid
+	d.logPath = logPath
+	if incRestarts {
+		d.restarts++
+	}
 	deploymentStore.Store(name, d)
 	return nil
-}
-
-func incDeploymentRestarts(name string, newPid int) {
-	writeLock.Lock()
-	defer writeLock.Unlock()
-	v, ok := deploymentStore.Load(name)
-	if !ok {
-		log.Printf("tried to increment restarts but deployment '%s' doesn't exist\n", name)
-		return
-	}
-	d := v.(deployment)
-	d.restarts++
-	d.pid = newPid
-	deploymentStore.Store(name, d)
 }
 
 func updateDeploymentStatus(name string, status DeploymentStatus) {

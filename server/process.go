@@ -14,17 +14,19 @@ import (
 
 var logNamePattern = regexp.MustCompile("^[a-zA-Z]+-(\\d+).log$")
 
-func launchProcess(c common.Config) (int, error) {
+func launchProcess(c common.Config) (pid int, logPath string, err error) {
 	if c.Spec.Logdir == "stdout" {
-		return launchProcessWithOut(c, nil, false)
+		pid, err = launchProcessWithOut(c, nil, false)
+		return pid, "stdout", err
 	} else {
 		logName := c.Spec.Name + "-" + strconv.Itoa(getLogCounter(c.Spec.Name, c.Spec.Logdir)+1) + ".log"
 		fullPath := c.Spec.Logdir + "/" + logName
 		file, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0750)
 		if err != nil {
-			return 0, fmt.Errorf("failed to create log file for '%s': %s", c.Spec.Name, err)
+			return 0, "", fmt.Errorf("failed to create log file for '%s': %s", c.Spec.Name, err)
 		}
-		return launchProcessWithOut(c, file, false)
+		pid, err = launchProcessWithOut(c, file, false)
+		return pid, fullPath, err
 	}
 }
 

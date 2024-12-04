@@ -50,12 +50,12 @@ func startDeployment(c common.Config) error {
 	if !ok {
 		return fmt.Errorf("deployment '%s' already exists", c.Spec.Name)
 	}
-	pid, err := launchProcess(c)
+	pid, logPath, err := launchProcess(c)
 	if err != nil {
 		deleteDeployment(c.Spec.Name)
 		return err
 	}
-	err = updateDeploymentPid(c.Spec.Name, pid)
+	err = updateDeployment(c.Spec.Name, pid, logPath, false)
 	if err != nil {
 		// For this to happen, delete must finish first before launching,
 		// which is hard to imagine because start is asynchronous and delete is synchronous.
@@ -109,6 +109,7 @@ type GetResponse struct {
 	Restarts int
 	Status   string
 	Age      string
+	LogPath  string
 	Config   common.Config
 }
 
@@ -130,6 +131,7 @@ func Get(r GetRequest) (*GetResponse, error) {
 		Restarts: p.restarts,
 		Status:   p.status.String(),
 		Age:      ageSince(p.createdAt),
+		LogPath:  p.logPath,
 		Config:   p.config,
 	}, nil
 }

@@ -43,11 +43,12 @@ Add flag `-w` to watch the updates
 ```
 	start            start Yetis server
 	shutdown         terminate Yetis server
-	apply -f [path]  create new deployments from the yaml configuration starting its processes.
-	list             list the managed deployments
-	describe [name]  get full info of the deployment 
-	delete [name]    deletes the deployment terminating its process. 
-	help             prints the list of the commands
+	apply -f {path}  create new deployments from yaml configuration starting its processes
+	list [-w]        list the managed deployments
+	logs [-f] {name} print the logs of a deployment
+	describe {name}  get full info of the deployment
+	delete {name}    delete the deployment terminating its process
+	help             print the list of the commands
 ```
 
 ## Deployment configuration
