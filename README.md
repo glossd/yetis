@@ -1,5 +1,5 @@
-# Yetis (WIP)
-Kubernetes for linux processes.  
+# Yetis (WIP) <img src=".github/yetigopher.png" width="92" align="center" alt="i"/>
+Kubernetes for linux processes.
 
 ## Use Case
 Containers need virtualization and your 5$ VPS doesn't support it? 
@@ -32,7 +32,7 @@ WIP systemctl
 ```shell
 yetis apply -f config.yaml
 ``` 
-[Configuration](#file-configuration)  
+[Configuration](#full-configuration)  
 
 #### List deployments
 `yetis list` will show the list of the processes.    
