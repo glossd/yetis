@@ -15,7 +15,7 @@ import (
 
 func TestRestart(t *testing.T) {
 	os.Setenv("YETIS_SERVER_LOGDIR", "stdout")
-	go server.Start()
+	go server.Run()
 	defer server.Stop()
 	// let the server start
 	time.Sleep(time.Millisecond)

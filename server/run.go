@@ -13,21 +13,8 @@ import (
 )
 
 const YetisServerPort = 54129
-const YetisServerLogdirDefault = "/tmp"
 
-func Start() {
-	ysl := os.Getenv("YETIS_SERVER_LOGDIR")
-	if ysl == "" {
-		ysl = YetisServerLogdirDefault
-	}
-	if ysl != "stdout" {
-		file, err := os.OpenFile(ysl+"/yetis.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			log.Fatalf("Failed to yetis log file: %v", err)
-		}
-		defer file.Close()
-		log.SetOutput(file)
-	}
+func Run() {
 	log.SetFlags(log.LstdFlags) // adds time to the log
 
 	mux := http.NewServeMux()

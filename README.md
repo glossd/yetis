@@ -25,7 +25,7 @@ apt install yetis
 ```shell
 yetis start
 ```
-Add `&` at the end to start in the background.
+Yetis will start in the background. The logs are available at `/tmp/yetis.log`. You can specify your own log directory with `-d` flag.  
 WIP systemctl
 ### Available commands
 #### Deploy your process:
@@ -41,7 +41,7 @@ Add flag `-w` to watch the updates
 
 #### Full list of commands
 ```
-	start            start Yetis server
+	start [-d]       start Yetis server
 	shutdown         terminate Yetis server
 	apply -f {path}  create new deployments from yaml configuration starting its processes
 	list [-w]        list the managed deployments

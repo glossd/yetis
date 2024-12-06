@@ -9,6 +9,7 @@ import (
 	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/server"
 	"os"
+	"os/exec"
 	"os/signal"
 	"sigs.k8s.io/yaml"
 	"syscall"
@@ -19,6 +20,23 @@ import (
 func init() {
 	var baseURL = fmt.Sprintf("http://127.0.0.1:%d/deployments", server.YetisServerPort)
 	fetch.SetBaseURL(baseURL)
+}
+
+func StartBackground(logdir string) {
+	if !unix.ExecutableExists("yetis") {
+		fmt.Println("yetis is not installed")
+	}
+
+	logFilePath := logdir + "/yetis.log"
+	err := exec.Command("nohup", "yetis", "run", ">>", logFilePath, "2>&1", "&").Start()
+	if err != nil {
+		fmt.Println("Failed to start Yetis:", err)
+	}
+	time.Sleep(25 * time.Millisecond)
+	if !common.IsPortOpenUntil(server.YetisServerPort, 25*time.Millisecond, 10) {
+		fmt.Println("Yetis hasn't started, check the log at", logFilePath)
+	}
+	fmt.Println("Yetis started successfully")
 }
 
 func List() {

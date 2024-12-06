@@ -20,3 +20,14 @@ func IsPortOpenTimeout(port int, timeout time.Duration) bool {
 	conn.Close()
 	return true
 }
+
+func IsPortOpenUntil(port int, period time.Duration, maxRestarts int) bool {
+	if maxRestarts == 0 {
+		return false
+	}
+	if IsPortOpen(port) {
+		return true
+	}
+	time.Sleep(period)
+	return IsPortOpenUntil(port, period, maxRestarts-1)
+}
