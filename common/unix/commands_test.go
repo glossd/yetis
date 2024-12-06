@@ -104,3 +104,8 @@ func assert[T comparable](t *testing.T, got, want T) {
 		t.Fatalf("got %v, wanted %v", got, want)
 	}
 }
+
+func TestExecutableExists(t *testing.T) {
+	assert(t, ExecutableExists("cat"), true)
+	assert(t, ExecutableExists("dskdywkcnoiuiuhjvncueiho"), false)
+}

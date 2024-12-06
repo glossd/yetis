@@ -15,6 +15,7 @@ func main() {
 
 	var serverless = map[string]bool{
 		"start": true,
+		"run":   true,
 		"help":  true,
 	}
 	if !serverless[args[1]] {
@@ -25,8 +26,20 @@ func main() {
 	}
 
 	switch args[1] {
+	case "run":
+		// starts Yetis server in the foreground
+		server.Run()
 	case "start":
-		server.Start()
+		logdir := "/tmp"
+		if len(args) > 3 {
+			if args[2] == "-d" {
+				logdir = args[3]
+			} else {
+				printFlags("start", "-d  directory for the server log")
+				return
+			}
+		}
+		client.StartBackground(logdir)
 	case "shutdown":
 		client.ShutdownServer()
 	case "list":
@@ -38,9 +51,8 @@ func main() {
 		case "-w":
 			client.ListWatch()
 		default:
-			fmt.Print(`The flags for list command are:
-	-w  watches for new updates
-`)
+			printFlags("list", "-w  watches for new updates")
+			return
 		}
 	case "logs":
 		if len(os.Args) < 3 {
@@ -88,6 +100,13 @@ func main() {
 	}
 }
 
+func printFlags(cmd string, flags ...string) {
+	fmt.Printf("The flags for %s command are:\n", cmd)
+	for _, flag := range flags {
+		fmt.Println("	" + flag)
+	}
+}
+
 func needName() {
 	fmt.Println("provide the name of the deployment")
 }
@@ -95,7 +114,7 @@ func needName() {
 func printHelp() {
 	fmt.Printf(`
 The commands are:
-	start            start Yetis server
+	start [-d]       start Yetis server
 	shutdown         terminate Yetis server
 	apply -f {path}  create new deployments from yaml configuration starting its processes
 	list [-w]        list the managed deployments
