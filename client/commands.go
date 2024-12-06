@@ -32,8 +32,8 @@ func StartBackground(logdir string) {
 	if err != nil {
 		fmt.Println("Failed to start Yetis:", err)
 	}
-	time.Sleep(25 * time.Millisecond)
-	if !common.IsPortOpenUntil(server.YetisServerPort, 25*time.Millisecond, 10) {
+	time.Sleep(15 * time.Millisecond)
+	if !common.IsPortOpenRetry(server.YetisServerPort, 10*time.Millisecond, 20) {
 		fmt.Println("Yetis hasn't started, check the log at", logFilePath)
 	}
 	fmt.Println("Yetis started successfully")

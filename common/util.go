@@ -21,7 +21,7 @@ func IsPortOpenTimeout(port int, timeout time.Duration) bool {
 	return true
 }
 
-func IsPortOpenUntil(port int, period time.Duration, maxRestarts int) bool {
+func IsPortOpenRetry(port int, period time.Duration, maxRestarts int) bool {
 	if maxRestarts == 0 {
 		return false
 	}
@@ -29,5 +29,5 @@ func IsPortOpenUntil(port int, period time.Duration, maxRestarts int) bool {
 		return true
 	}
 	time.Sleep(period)
-	return IsPortOpenUntil(port, period, maxRestarts-1)
+	return IsPortOpenRetry(port, period, maxRestarts-1)
 }
