@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/glossd/yetis/client"
+	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/server"
 	"os"
 )
@@ -26,6 +27,9 @@ func main() {
 	}
 
 	switch args[1] {
+	case "info":
+		client.Info()
+		fmt.Printf("Client: version=%s", common.YetisVersion)
 	case "run":
 		// starts Yetis server in the foreground
 		server.Run()
@@ -116,6 +120,7 @@ func printHelp() {
 The commands are:
 	start [-d]       start Yetis server
 	shutdown         terminate Yetis server
+	info             print server status
 	apply -f {path}  create new deployments from yaml configuration starting its processes
 	list [-w]        list the managed deployments
 	logs [-f] {name} print the logs of a deployment

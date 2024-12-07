@@ -24,6 +24,7 @@ func Run() {
 			log.Println("fetch.Handler error", err)
 		},
 	})
+	mux.HandleFunc("GET /info", fetch.ToHandlerFunc(Info))
 	mux.HandleFunc("GET /deployments", fetch.ToHandlerFunc(List))
 	mux.HandleFunc("GET /deployments/{name}", fetch.ToHandlerFunc(Get))
 	mux.HandleFunc("POST /deployments", fetch.ToHandlerFunc(Post))

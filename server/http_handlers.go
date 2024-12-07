@@ -171,3 +171,15 @@ func Delete(r DeleteRequest) (*fetch.Empty, error) {
 	deleteDeployment(name)
 	return &fetch.Empty{}, nil
 }
+
+type InfoResponse struct {
+	Version             string
+	NumberOfDeployments int
+}
+
+func Info(_ fetch.Empty) (*InfoResponse, error) {
+	return &InfoResponse{
+		Version:             common.YetisVersion,
+		NumberOfDeployments: deploymentsNum(),
+	}, nil
+}

@@ -1,6 +1,8 @@
 package server
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestSortDeployments(t *testing.T) {
 	res := []DeploymentView{{Name: "b"}, {Name: "a"}}

@@ -17,8 +17,10 @@ import (
 	"time"
 )
 
+var baseHost = fmt.Sprintf("http://127.0.0.1:%d", server.YetisServerPort)
+
 func init() {
-	var baseURL = fmt.Sprintf("http://127.0.0.1:%d/deployments", server.YetisServerPort)
+	var baseURL = fmt.Sprintf(baseHost + "/deployments")
 	fetch.SetBaseURL(baseURL)
 }
 
@@ -39,15 +41,24 @@ func StartBackground(logdir string) {
 	fmt.Println("Yetis started successfully")
 }
 
+func Info() {
+	get, err := fetch.Get[server.InfoResponse](baseHost + "/info")
+	if err != nil {
+		fmt.Println("Server hasn't responded", err)
+	}
+	fmt.Printf("Server: version=%s, deployments=%d\n", get.Version, get.NumberOfDeployments)
+}
+
 func List() {
+	versionsWarning()
 	printDeploymentTable()
 }
 
-func printDeploymentTable() (int, error) {
+func printDeploymentTable() (int, bool) {
 	views, err := fetch.Get[[]server.DeploymentView]("")
 	if err != nil {
 		fmt.Println(err)
-		return 0, err
+		return 0, false
 	} else {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(tw, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND")
@@ -55,7 +66,7 @@ func printDeploymentTable() (int, error) {
 			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command))
 		}
 		tw.Flush()
-		return len(views), nil
+		return len(views), true
 	}
 }
 
@@ -67,8 +78,8 @@ func ListWatch() {
 	for {
 		os.Stdout.WriteString(returnToStart)
 		returnToStart = ""
-		num, err := printDeploymentTable()
-		if err != nil {
+		num, ok := printDeploymentTable()
+		if !ok {
 			return
 		}
 		returnToStart = upLine
@@ -91,6 +102,7 @@ func preventSignalInterrupt() {
 }
 
 func Describe(name string) {
+	versionsWarning()
 	r, err := fetch.Get[server.GetResponse]("/" + name)
 	if err != nil {
 		fmt.Println(err)
@@ -111,6 +123,7 @@ func Describe(name string) {
 }
 
 func Delete(name string) {
+	versionsWarning()
 	_, err := fetch.Delete[fetch.ResponseEmpty]("/" + name)
 	if err != nil {
 		fmt.Println(err)
@@ -120,6 +133,7 @@ func Delete(name string) {
 }
 
 func Apply(path string) {
+	versionsWarning()
 	configs, err := common.ReadConfigs(path)
 	if err != nil {
 		fmt.Println(err)
@@ -169,5 +183,14 @@ func ShutdownServer() {
 		fmt.Println("Failed to stop Yetis server", err)
 	} else {
 		fmt.Println("Yetis server stopped.")
+	}
+}
+
+func versionsWarning() {
+	get, err := fetch.Get[server.InfoResponse]("/info")
+	if err == nil {
+		if get.Version != common.YetisVersion {
+			fmt.Printf("Warning: yetis version mismatch, client=%s, server=%s\n", common.YetisVersion, get.Version)
+		}
 	}
 }
