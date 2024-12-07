@@ -12,12 +12,8 @@ But you would still like some nice features of `k8s`? Read further.
 4. (WIP) Zero downtime deployment. Achieved with a sidecar proxy.
 
 ## Installing
-Download `yetis` binary file from `build` folder and scp it to your VPS.
-WIP
-Debian package
-```shell
-apt install yetis
-```
+Download `yetis` binary file from `build` directory and scp it to your VPS into `/usr/local/bin`.  
+WIP Debian apt package manager.
 
 ## Commands
 *You don't need to be `root`.
@@ -43,6 +39,7 @@ Add flag `-w` to watch the updates
 ```
 	start [-d]       start Yetis server
 	shutdown         terminate Yetis server
+	info             print server status
 	apply -f {path}  create new deployments from yaml configuration starting its processes
 	list [-w]        list the managed deployments
 	logs [-f] {name} print the logs of a deployment
