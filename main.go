@@ -29,7 +29,7 @@ func main() {
 	switch args[1] {
 	case "info":
 		client.Info()
-		fmt.Printf("Client: version=%s", common.YetisVersion)
+		fmt.Printf("Client: version=%s\n", common.YetisVersion)
 	case "run":
 		// starts Yetis server in the foreground
 		server.Run()
