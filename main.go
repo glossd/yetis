@@ -12,6 +12,7 @@ func main() {
 	args := os.Args
 	if len(args) < 2 {
 		printHelp()
+		return
 	}
 
 	var serverless = map[string]bool{
@@ -116,8 +117,7 @@ func needName() {
 }
 
 func printHelp() {
-	fmt.Printf(`
-The commands are:
+	fmt.Printf(`The commands are:
 	start [-d]       start Yetis server
 	shutdown         terminate Yetis server
 	info             print server status

@@ -2,7 +2,6 @@ package server
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
@@ -124,16 +123,17 @@ type GetResponse struct {
 }
 
 type GetRequest struct {
-	Name string `pathval:"name"`
+	Name string
 }
 
-func Get(r GetRequest) (*GetResponse, error) {
-	if r.Name == "" {
+func Get(r fetch.Request[GetRequest]) (*GetResponse, error) {
+	name := r.PathValues["name"]
+	if name == "" {
 		return nil, fmt.Errorf("name can't be empty")
 	}
-	p, ok := getDeployment(r.Name)
+	p, ok := getDeployment(name)
 	if !ok {
-		return nil, fmt.Errorf("name '%s' doesn't exist", r.Name)
+		return nil, fmt.Errorf("name '%s' doesn't exist", name)
 	}
 
 	return &GetResponse{
@@ -146,13 +146,8 @@ func Get(r GetRequest) (*GetResponse, error) {
 	}, nil
 }
 
-type DeleteRequest struct {
-	Ctx  context.Context
-	Name string `pathval:"name"`
-}
-
-func Delete(r DeleteRequest) (*fetch.Empty, error) {
-	name := r.Name
+func Delete(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+	name := r.PathValues["name"]
 	if name == "" {
 		return nil, fmt.Errorf(`name can't be empty`)
 	}
@@ -163,7 +158,7 @@ func Delete(r DeleteRequest) (*fetch.Empty, error) {
 	}
 
 	if d.pid != 0 {
-		err := unix.TerminateProcess(r.Ctx, d.pid)
+		err := unix.TerminateProcess(r.Context, d.pid)
 		if err != nil {
 			return nil, err
 		}

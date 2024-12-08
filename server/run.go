@@ -75,9 +75,9 @@ func deleteDeploymentsGracefully() {
 	rangeDeployments(func(name string, p deployment) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_, err := Delete(DeleteRequest{
-			Ctx:  ctx,
-			Name: name,
+		_, err := Delete(fetch.Request[fetch.Empty]{
+			Context:    ctx,
+			PathValues: map[string]string{"name": name},
 		})
 		if err == nil {
 			log.Println("Deleted", name)

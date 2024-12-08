@@ -124,7 +124,7 @@ func Describe(name string) {
 
 func Delete(name string) {
 	versionsWarning()
-	_, err := fetch.Delete[fetch.ResponseEmpty]("/" + name)
+	_, err := fetch.Delete[fetch.Empty]("/" + name)
 	if err != nil {
 		fmt.Println(err)
 	} else {
