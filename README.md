@@ -1,9 +1,8 @@
 # Yetis (WIP) <img src=".github/yetigopher.png" width="92" align="center" alt="i"/>
-Kubernetes for linux processes.
+Kubernetes for linux processes running on a single machine.
 
-## Use Case
-Containers need virtualization and your 5$ VPS doesn't support it? 
-But you would still like some nice features of `k8s`? Read further.
+### Use Case
+Containers need virtualization and your VPS doesn't support it, but you would still like some `k8s` features.
 
 ## Features of Yetis
 1. Kubernetes-like declarative configuration.
@@ -49,7 +48,7 @@ Add flag `-w` to watch the updates
 ```
 
 ## Deployment configuration
-As of now, Yetis only accepts YAML. You can specify multiple specs inside one file by separating them with `---`
+Yetis only accepts YAML. You can specify multiple specs inside one file by separating them with `---`
 #### Minimal required configuration. 
 ```yaml
 spec:
