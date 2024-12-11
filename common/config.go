@@ -12,16 +12,8 @@ import (
 	"time"
 )
 
-type Kind string
-
-const (
-	Deployment Kind = "Deployment"
-	Service    Kind = "Service"
-)
-
 type Config struct {
 	path string
-	Kind Kind
 	Spec Spec
 }
 type Spec struct {
@@ -64,8 +56,15 @@ type Proxy struct {
 	Strategy DeploymentStrategy
 }
 
+type StrategyType string
+
+const (
+	RollingUpdate StrategyType = "RollingUpdate"
+	Recreate      StrategyType = "Recreate"
+)
+
 type DeploymentStrategy struct {
-	Type string
+	Type StrategyType
 }
 
 func ReadConfigs(path string) ([]Config, error) {
@@ -78,12 +77,14 @@ func ReadConfigs(path string) ([]Config, error) {
 		return nil, err
 	}
 
+	cs = setDefault(filepath.Dir(path), setEnvVars(cs))
+
 	err = validate(cs)
 	if err != nil {
 		return nil, err
 	}
 
-	return setDefault(filepath.Dir(path), setEnvVars(cs)), nil
+	return cs, nil
 }
 
 func setEnvVars(configs []Config) []Config {
@@ -91,7 +92,8 @@ func setEnvVars(configs []Config) []Config {
 	for _, config := range configs {
 		var newEnvs []EnvVar
 		for _, envVar := range config.Spec.Env {
-			if strings.HasPrefix(envVar.Value, "$") && len(envVar.Value) > 1 {
+			if strings.HasPrefix(envVar.Value, "$") && len(envVar.Value) > 1 && envVar.Value != "$YETIS_PORT" {
+				// $YETIS_PORT is set on the server.
 				envVal := os.Getenv(envVar.Value[1:])
 				if envVal != "" {
 					envVar.Value = envVal
@@ -110,9 +112,6 @@ func setEnvVars(configs []Config) []Config {
 func setDefault(defaultPath string, configs []Config) []Config {
 	var newConfigs []Config
 	for _, config := range configs {
-		if config.Kind == "" {
-			config.Kind = Deployment
-		}
 		if config.Spec.Workdir == "" {
 			config.Spec.Workdir = defaultPath
 		}
@@ -131,6 +130,9 @@ func setDefault(defaultPath string, configs []Config) []Config {
 		if config.Spec.LivenessProbe.SuccessThreshold == 0 {
 			config.Spec.LivenessProbe.SuccessThreshold = 1
 		}
+		if config.Spec.Proxy.Strategy.Type == "" {
+			config.Spec.Proxy.Strategy.Type = RollingUpdate
+		}
 
 		newConfigs = append(newConfigs, config)
 	}
@@ -139,9 +141,6 @@ func setDefault(defaultPath string, configs []Config) []Config {
 
 func validate(configs []Config) error {
 	for _, config := range configs {
-		if config.Kind != Deployment && config.Kind != Service && config.Kind != "" {
-			return fmt.Errorf("invalid kind: allowed Deployment, Service")
-		}
 		if config.Spec.Cmd == "" {
 			return fmt.Errorf("invalid spec: cmd is required")
 		}
@@ -151,6 +150,11 @@ func validate(configs []Config) error {
 
 		if config.Spec.Proxy.Port == 0 && config.Spec.LivenessProbe.TcpSocket.Port == 0 {
 			return fmt.Errorf("proxy is not configured, livenessProbe.tcpSocket.port must be specified")
+		}
+
+		strategyType := config.Spec.Proxy.Strategy.Type
+		if strategyType != Recreate && strategyType != RollingUpdate {
+			return fmt.Errorf("proxy strategy type is invalid: %s", strategyType)
 		}
 	}
 	return nil

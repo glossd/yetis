@@ -6,8 +6,10 @@ import (
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
+	"github.com/glossd/yetis/proxy"
 	"log"
 	"slices"
+	"strconv"
 	"time"
 )
 
@@ -38,12 +40,39 @@ func Post(confs []common.Config) (PostResponse, error) {
 }
 
 func applyConfig(c common.Config) error {
+	if c.Spec.Proxy.Port > 0 {
+		var err error
+		c, err = setDeploymentPortEnv(c)
+		if err != nil {
+			return err
+		}
+	}
+
 	err := startDeployment(c)
 	if err != nil {
 		return err
 	}
+
 	runLivenessCheck(c, 2)
 	return nil
+}
+
+func setDeploymentPortEnv(c common.Config) (common.Config, error) {
+	deploymentPort, err := common.GetFreePort()
+	if err != nil {
+		return common.Config{}, fmt.Errorf("proxy is configured, failed to assigned port: %s", err)
+	}
+	c.Spec.LivenessProbe.TcpSocket.Port = deploymentPort
+	newEnvs := []common.EnvVar{{Name: "YETIS_PORT", Value: strconv.Itoa(deploymentPort)}}
+	for _, envVar := range c.Spec.Env {
+		if envVar.Value == "$YETIS_PORT" {
+			newEnvs = append(newEnvs, common.EnvVar{Name: envVar.Name, Value: strconv.Itoa(deploymentPort)})
+		} else {
+			newEnvs = append(newEnvs, envVar)
+		}
+	}
+	c.Spec.Env = newEnvs
+	return c, nil
 }
 
 func startDeployment(c common.Config) error {
@@ -63,6 +92,16 @@ func startDeployment(c common.Config) error {
 		log.Printf("Failed to update pid after launching process, pid=%d", pid)
 		return err
 	}
+	return nil
+}
+
+func startProxy(c common.Config) error {
+	// saveProxy
+	pid, err := proxy.Exec(c.Spec.Proxy.Port, c.Spec.LivenessProbe.TcpSocket.Port)
+	if err != nil {
+		return fmt.Errorf("failed to start proxy for %s: %s", c.Spec.Name, err)
+	}
+	// updateProxy
 	return nil
 }
 

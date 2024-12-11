@@ -8,7 +8,7 @@ Containers need virtualization and your VPS doesn't support it, but you would st
 1. Kubernetes-like declarative configuration.
 2. Self-healing. Automatically restarts failed processes. Kills and recreates unresponsive processes.
 3. Log management. It saves the standard output into iterative log files.
-4. (WIP) Zero downtime deployment. Achieved with a sidecar proxy.
+4. Zero downtime deployment. Achieved with a sidecar proxy.
 
 ## Installing
 ```shell
@@ -61,7 +61,6 @@ spec:
 
 #### Full configuration
 ```yaml
-kind: Deployment
 spec:
   name: hello-world # Must be unique
   cmd: java HelloWorld
@@ -81,23 +80,10 @@ spec:
       value: mellon
     - name: MY_PORT
       value: $YETIS_PORT # pass the value of the environment variable to another one.
-```
-## Service configuration
-To configure a sidecar proxy for your deployment create a `Service`.  
-```yaml
-kind: Service
-spec:
-  selector:
-    name: frontend
-  port: 8080
----
-kind: Deployment
-spec:
-  name: frontend
-  cmd: npm start
-  env:
-    - name: APP_PORT
-      value: $YETIS_PORT
+  proxy: # read the Proxy section
+    port: 4567 # The port for the sidecar proxy to run. Your 'cmd' must start on YETIS_PORT env var.
+    strategy:
+      type: RollingUpdate # RollingUpdate or Recreate. Defaults to RollingUpdate.
 ```
 
 
