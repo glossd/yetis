@@ -1,4 +1,4 @@
-# Yetis (WIP) <img src=".github/yetigopher.png" width="92" align="center" alt="i"/>
+# Yetis <img src=".github/yetigopher.png" width="92" align="center" alt="i"/>
 Kubernetes for linux processes running on a single machine.
 
 ### Use Case
@@ -8,7 +8,7 @@ Containers need virtualization and your VPS doesn't support it, but you would st
 1. Kubernetes-like declarative configuration.
 2. Self-healing. Automatically restarts failed processes. Kills and recreates unresponsive processes.
 3. Log management. It saves the standard output into iterative log files.
-4. Zero downtime deployment. Achieved with a sidecar proxy.
+4. Zero downtime deployment. Achieved with Service
 
 ## Installing
 ```shell
@@ -46,29 +46,61 @@ Add flag `-w` to watch the updates
 	help             print the list of the commands
 ```
 
-## Deployment configuration
-Yetis only accepts YAML. You can specify multiple specs inside one file by separating them with `---`
-#### Minimal required configuration. 
+## Configuration examples
+### Deployment with Service
+```yaml
+kind: Service
+spec:
+  port: 4567
+  selector:
+    name: frontend
+---
+kind: Deployment
+spec:
+  name: frontend
+  cmd: npm start
+  workdir: /home/user/myfront
+  strategy:
+    type: RollingUpdate
+  env:
+    - name: APP_PORT # If you configure a Service, your app shouldn't have a static port.
+      value: $YETIS_PORT
+```
+### Deployment without Service 
 ```yaml
 kind: Deployment
 spec:
   name: frontend
   cmd: npm start
+  workdir: /home/user/myfront
   livenessProbe:
     tcpSocket:
       port: 3000
 ```
 
-#### Full configuration
+## Service configuration
+Service is a proxy for the deployment with a static port. It allows RollingUpdate and zero deployment.  
 ```yaml
+kind: Service
+spec:
+  port: 4567 # The port for Service to run on
+  selector:
+    name: name-of-deployment # Name of the deployment to proxy to.
+```
+
+## Deployment configuration
+```yaml
+kind: Deployment
 spec:
   name: hello-world # Must be unique
   cmd: java HelloWorld
   workdir: /home/user/myproject # Directory where command is executed. Defaults to the path in 'apply -f'. 
   logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to the path in 'apply -f'.
+  strategy:
+    type: Recreate # Recreate or RollingUpdate. Defaults to Recreate. RollingUpdate should be specified only with Service 
   livenessProbe: # Checks if the command is alive and if not then restarts it
     tcpSocket:
-      port: 8080 # Ignored if service is configured. 
+      port: 8080 # Should be specified if Service is not configured. Defaults to $YETIS_PORT 
     initialDelaySeconds: 5 # Defaults to 10
     periodSeconds: 5 # Defaults to 10
     failureThreshold: 3 # Defaults to 3
@@ -80,26 +112,15 @@ spec:
       value: mellon
     - name: MY_PORT
       value: $YETIS_PORT # pass the value of the environment variable to another one.
-  proxy: # read the Proxy section
-    port: 4567 # The port for the sidecar proxy to run. Your 'cmd' must start on YETIS_PORT env var.
-    strategy:
-      type: RollingUpdate # RollingUpdate or Recreate. Defaults to RollingUpdate.
 ```
 
 
 ### Liveness Probe
-Checks if the process is alive and ready. Yetis relies on this configuration to restart the process. Plus if proxy is configured, then forward traffic to the `cmd` process. 
-For now, the probe only supports tcpSocket. If proxy is configured, then $YETIS_PORT by default. It also acts as Readiness and StartUp Probes. If you need them, PRs are welcome.
+Checks if the process is alive and ready.  Yetis relies on this configuration to restart the process. Plus if Service is configured, then forward traffic to the Deployment. 
+For now, the probe only supports tcpSocket. It also acts as Readiness and StartUp Probes. If you need anything, PRs are welcome.
 
-### Proxy (WIP)
-Proxy represents a sidecar proxy pattern. It is an optional configuration which allows you to have a zero downtime deployment.
-It is achieved through RollingUpdate strategy in the load balancer. It will spawn a new instance,
-update the LB and direct traffic to the new port, and only then will terminate the old instance. 
-The load balancer will accept two ports which will be switched during the deployment.
-If you specify the `Recreate` strategy, yetis will wait for the termination of old instance before starting a new one. 
-#### Application
-Your application specified in the `cmd` must start on a port provided in the `YETIS_PORT` environment variable.
-
-
-
-
+### Deployment Strategies
+Zero downtime is achieved with `RollingUpdate` strategy. It will spawn a new deployment, check if it's [healthy](#liveness-probe),
+then direct traffic to the new instance, and only then will terminate the old instance.  
+If you specify the `Recreate` strategy, Yetis will wait for the termination of the old instance before starting a new one.
+It's the same as in [Kubernetes](https://medium.com/@muppedaanvesh/rolling-update-recreate-deployment-strategies-in-kubernetes-️-327b59f27202)
