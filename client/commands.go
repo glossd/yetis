@@ -20,8 +20,7 @@ import (
 var baseHost = fmt.Sprintf("http://127.0.0.1:%d", server.YetisServerPort)
 
 func init() {
-	var baseURL = fmt.Sprintf(baseHost + "/deployments")
-	fetch.SetBaseURL(baseURL)
+	fetch.SetBaseURL(baseHost)
 }
 
 func StartBackground(logdir string) {
@@ -55,7 +54,7 @@ func List() {
 }
 
 func printDeploymentTable() (int, bool) {
-	views, err := fetch.Get[[]server.DeploymentView]("")
+	views, err := fetch.Get[[]server.DeploymentView]("/deployments")
 	if err != nil {
 		fmt.Println(err)
 		return 0, false

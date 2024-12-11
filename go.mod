@@ -4,4 +4,4 @@ go 1.23.2
 
 require sigs.k8s.io/yaml v1.4.0
 
-require github.com/glossd/fetch v0.7.0 // indirect
+require github.com/glossd/fetch v0.7.1 // indirect

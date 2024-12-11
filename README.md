@@ -20,8 +20,7 @@ sudo wget -P /usr/local/bin https://github.com/glossd/yetis/raw/refs/heads/maste
 ```shell
 yetis start
 ```
-Yetis will start in the background. The logs are available at `/tmp/yetis.log`. You can specify your own log directory with `-d` flag.  
-WIP systemctl
+Yetis will start in the background. The logs are available at `/tmp/yetis.log`. You can specify your own log directory with `-d` flag.
 ### Available commands
 #### Deploy your process:
 ```shell
@@ -51,24 +50,26 @@ Add flag `-w` to watch the updates
 Yetis only accepts YAML. You can specify multiple specs inside one file by separating them with `---`
 #### Minimal required configuration. 
 ```yaml
+kind: Deployment
 spec:
-  name: my-front
+  name: frontend
   cmd: npm start
   livenessProbe:
     tcpSocket:
       port: 3000
 ```
 
-### Full configuration
+#### Full configuration
 ```yaml
+kind: Deployment
 spec:
-  name: hello-world # Must be unique per spec
-  cmd: java HelloWorld # If proxy is enabled, start it on a port from YETIS_PORT env var.
+  name: hello-world # Must be unique
+  cmd: java HelloWorld
   workdir: /home/user/myproject # Directory where command is executed. Defaults to the path in 'apply -f'. 
   logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to the path in 'apply -f'.
-  livenessProbe: # Checks if the command is alive on the YETIS_PORT, and if not then restarts it
+  livenessProbe: # Checks if the command is alive and if not then restarts it
     tcpSocket:
-      port: 8080 # Ignored if proxy is configured. 
+      port: 8080 # Ignored if service is configured. 
     initialDelaySeconds: 5 # Defaults to 10
     periodSeconds: 5 # Defaults to 10
     failureThreshold: 3 # Defaults to 3
@@ -79,12 +80,26 @@ spec:
     - name: SOME_PASSWORD
       value: mellon
     - name: MY_PORT
-      value: $YETIS_PORT # pass the value of the environment variable to another one. 
-  proxy: # WIP: read the Proxy section
-    port: 4567 # The port for the sidecar proxy to run. Your 'cmd' must start on YETIS_PORT env var.
-    strategy:
-      type: RollingUpdate # RollingUpdate or Recreate. Defaults to RollingUpdate.
+      value: $YETIS_PORT # pass the value of the environment variable to another one.
 ```
+## Service configuration
+To configure a sidecar proxy for your deployment create a `Service`.  
+```yaml
+kind: Service
+spec:
+  selector:
+    name: frontend
+  port: 8080
+---
+kind: Deployment
+spec:
+  name: frontend
+  cmd: npm start
+  env:
+    - name: APP_PORT
+      value: $YETIS_PORT
+```
+
 
 ### Liveness Probe
 Checks if the process is alive and ready. Yetis relies on this configuration to restart the process. Plus if proxy is configured, then forward traffic to the `cmd` process. 

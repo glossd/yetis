@@ -7,6 +7,7 @@ import (
 
 func TestConfigUnmarshalSpec(t *testing.T) {
 	const fullConfig = `
+kind: Deployment
 spec:
   name: hello-world # Must be unique per spec
   cmd: java HelloWorld # If lb is enabled, start it on a port from YETIS_PORT env var.
@@ -40,6 +41,7 @@ spec:
 	if len(configs) != 1 {
 		t.Fatalf("should be one config")
 	}
+	assert(t, configs[0].Kind, Deployment)
 	s := configs[0].Spec
 	assert(t, s.Cmd, "java HelloWorld")
 	assert(t, s.LivenessProbe.PeriodSeconds, 5)
@@ -77,6 +79,14 @@ func TestConfigSetEnv(t *testing.T) {
 }
 
 func TestConfigDefault(t *testing.T) {
+	c := Config{}
+	newC := setDefault("./", []Config{c})[0]
+	if newC.Spec.LivenessProbe.PeriodSeconds != 10 || newC.Kind != Deployment {
+		t.Fatalf("expected to set default value, got=%+v", newC)
+	}
+}
+
+func TestConfig(t *testing.T) {
 	c := Config{}
 	newC := setDefault("./", []Config{c})
 	if newC[0].Spec.LivenessProbe.PeriodSeconds != 10 {

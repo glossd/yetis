@@ -27,7 +27,10 @@ func Run() {
 	mux.HandleFunc("GET /info", fetch.ToHandlerFunc(Info))
 	mux.HandleFunc("GET /deployments", fetch.ToHandlerFunc(List))
 	mux.HandleFunc("GET /deployments/{name}", fetch.ToHandlerFunc(Get))
-	mux.HandleFunc("POST /deployments", fetch.ToHandlerFunc(Post))
+
+	mux.HandleFunc("POST /deployments", fetch.ToHandlerFunc(Post)) // deprecated
+	mux.HandleFunc("POST /configs", fetch.ToHandlerFunc(Post))
+
 	mux.HandleFunc("DELETE /deployments/{name}", fetch.ToHandlerFunc(Delete))
 
 	runWithGracefulShutDown(mux)

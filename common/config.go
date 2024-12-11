@@ -12,8 +12,16 @@ import (
 	"time"
 )
 
+type Kind string
+
+const (
+	Deployment Kind = "Deployment"
+	Service    Kind = "Service"
+)
+
 type Config struct {
 	path string
+	Kind Kind
 	Spec Spec
 }
 type Spec struct {
@@ -102,6 +110,9 @@ func setEnvVars(configs []Config) []Config {
 func setDefault(defaultPath string, configs []Config) []Config {
 	var newConfigs []Config
 	for _, config := range configs {
+		if config.Kind == "" {
+			config.Kind = Deployment
+		}
 		if config.Spec.Workdir == "" {
 			config.Spec.Workdir = defaultPath
 		}
@@ -128,6 +139,9 @@ func setDefault(defaultPath string, configs []Config) []Config {
 
 func validate(configs []Config) error {
 	for _, config := range configs {
+		if config.Kind != Deployment && config.Kind != Service && config.Kind != "" {
+			return fmt.Errorf("invalid kind: allowed Deployment, Service")
+		}
 		if config.Spec.Cmd == "" {
 			return fmt.Errorf("invalid spec: cmd is required")
 		}

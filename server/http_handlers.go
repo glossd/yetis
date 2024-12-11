@@ -122,11 +122,7 @@ type GetResponse struct {
 	Config   common.Config
 }
 
-type GetRequest struct {
-	Name string
-}
-
-func Get(r fetch.Request[GetRequest]) (*GetResponse, error) {
+func Get(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
 	name := r.PathValues["name"]
 	if name == "" {
 		return nil, fmt.Errorf("name can't be empty")

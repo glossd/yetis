@@ -48,6 +48,8 @@ func main() {
 	case "shutdown":
 		client.ShutdownServer()
 	case "list":
+		fallthrough
+	case "get":
 		if len(args) == 2 {
 			client.List()
 			return
