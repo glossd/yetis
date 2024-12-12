@@ -6,102 +6,63 @@ import (
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
-	"github.com/glossd/yetis/proxy"
 	"log"
 	"slices"
 	"strconv"
 	"time"
 )
 
-type PostResponse struct {
-	Success int
-	Failure int
-	Error   string
-}
-
-func Post(confs []common.Config) (PostResponse, error) {
-	var errs []error
-	for _, conf := range confs {
-		err := applyConfig(conf)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-	var errStr string
-	for _, err := range errs {
-		errStr = errStr + err.Error() + "\n"
-	}
-
-	return PostResponse{
-		Success: len(confs) - len(errs),
-		Failure: len(errs),
-		Error:   errStr,
-	}, nil
-}
-
-func applyConfig(c common.Config) error {
-	if c.Spec.Proxy.Port > 0 {
-		var err error
-		c, err = setDeploymentPortEnv(c)
-		if err != nil {
-			return err
-		}
-	}
-
-	err := startDeployment(c)
+func PostDeployment(spec common.DeploymentSpec) (*fetch.Empty, error) {
+	spec, err := setDeploymentPortEnv(spec)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	err = startDeployment(spec)
+	if err != nil {
+		return nil, err
 	}
 
-	runLivenessCheck(c, 2)
-	return nil
+	runLivenessCheck(spec, 2)
+	return &fetch.Empty{}, nil
 }
 
-func setDeploymentPortEnv(c common.Config) (common.Config, error) {
+func setDeploymentPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error) {
 	deploymentPort, err := common.GetFreePort()
 	if err != nil {
-		return common.Config{}, fmt.Errorf("proxy is configured, failed to assigned port: %s", err)
+		return common.DeploymentSpec{}, fmt.Errorf("failed to assigned port: %s", err)
 	}
-	c.Spec.LivenessProbe.TcpSocket.Port = deploymentPort
+	if c.LivenessProbe.TcpSocket.Port == 0 {
+		c.LivenessProbe.TcpSocket.Port = deploymentPort
+	}
 	newEnvs := []common.EnvVar{{Name: "YETIS_PORT", Value: strconv.Itoa(deploymentPort)}}
-	for _, envVar := range c.Spec.Env {
+	for _, envVar := range c.Env {
 		if envVar.Value == "$YETIS_PORT" {
 			newEnvs = append(newEnvs, common.EnvVar{Name: envVar.Name, Value: strconv.Itoa(deploymentPort)})
 		} else {
 			newEnvs = append(newEnvs, envVar)
 		}
 	}
-	c.Spec.Env = newEnvs
+	c.Env = newEnvs
 	return c, nil
 }
 
-func startDeployment(c common.Config) error {
+func startDeployment(c common.DeploymentSpec) error {
 	ok := saveDeployment(c, 0)
 	if !ok {
-		return fmt.Errorf("deployment '%s' already exists", c.Spec.Name)
+		return fmt.Errorf("deployment '%s' already exists", c.Name)
 	}
 	pid, logPath, err := launchProcess(c)
 	if err != nil {
-		deleteDeployment(c.Spec.Name)
+		deleteDeployment(c.Name)
 		return err
 	}
-	err = updateDeployment(c.Spec.Name, pid, logPath, false)
+	err = updateDeployment(c.Name, pid, logPath, false)
 	if err != nil {
 		// For this to happen, delete must finish first before launching,
 		// which is hard to imagine because start is asynchronous and delete is synchronous.
 		log.Printf("Failed to update pid after launching process, pid=%d", pid)
 		return err
 	}
-	return nil
-}
-
-func startProxy(c common.Config) error {
-	// saveProxy
-	pid, err := proxy.Exec(c.Spec.Proxy.Port, c.Spec.LivenessProbe.TcpSocket.Port)
-	if err != nil {
-		return fmt.Errorf("failed to start proxy for %s: %s", c.Spec.Name, err)
-	}
-	// updateProxy
 	return nil
 }
 
@@ -123,7 +84,7 @@ func List(_ fetch.Empty) ([]DeploymentView, error) {
 			Pid:      p.pid,
 			Restarts: p.restarts,
 			Age:      ageSince(p.createdAt),
-			Command:  p.config.Spec.Cmd,
+			Command:  p.config.Cmd,
 		})
 	})
 
@@ -158,7 +119,7 @@ type GetResponse struct {
 	Status   string
 	Age      string
 	LogPath  string
-	Config   common.Config
+	Config   common.DeploymentSpec
 }
 
 func Get(r fetch.Request[fetch.Empty]) (*GetResponse, error) {

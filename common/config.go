@@ -159,7 +159,6 @@ func setEnvVars(configs []Config) []Config {
 			}
 			spec.Env = newEnvs
 			config.Spec = spec
-			newConfigs = append(newConfigs, config)
 		}
 		newConfigs = append(newConfigs, config)
 	}

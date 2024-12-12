@@ -18,7 +18,7 @@ type deployment struct {
 	restarts  int
 	status    DeploymentStatus
 	createdAt time.Time
-	config    common.Config
+	config    common.DeploymentSpec
 }
 
 type DeploymentStatus int
@@ -43,14 +43,14 @@ func (pc DeploymentStatus) String() string {
 
 var writeLock sync.Mutex
 
-func saveDeployment(c common.Config, pid int) bool {
+func saveDeployment(c common.DeploymentSpec, pid int) bool {
 	writeLock.Lock()
 	defer writeLock.Unlock()
-	_, ok := getDeployment(c.Spec.Name)
+	_, ok := getDeployment(c.Name)
 	if ok {
 		return false
 	}
-	deploymentStore.Store(c.Spec.Name, deployment{pid: pid, restarts: 0, createdAt: time.Now(), config: c})
+	deploymentStore.Store(c.Name, deployment{pid: pid, restarts: 0, createdAt: time.Now(), config: c})
 	return true
 }
 

@@ -139,13 +139,16 @@ func Apply(path string) {
 		fmt.Println(err)
 		return
 	}
-	res, err := fetch.Post[server.PostResponse]("", configs)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(fmt.Sprintf("Successfully applied %d out of %d", res.Success, res.Success+res.Failure))
-		if res.Error != "" {
-			fmt.Println(fmt.Sprintf("Errors: %s", res.Error))
+	for _, config := range configs {
+		switch config.Spec.Kind() {
+		case common.Deployment:
+			spec := config.Spec.(common.DeploymentSpec)
+			_, err := fetch.Post[fetch.Empty]("", spec)
+			if err != nil {
+				fmt.Printf("Failure applying %s deployment: %s\n", spec.Name, err)
+			} else {
+				fmt.Printf("Successfully applied %s deployment\n", spec.Name)
+			}
 		}
 	}
 }

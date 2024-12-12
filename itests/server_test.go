@@ -14,6 +14,7 @@ import (
 )
 
 func TestRestart(t *testing.T) {
+	unix.KillByPort(server.YetisServerPort)
 	go server.Run()
 	defer server.Stop()
 	// let the server start
@@ -61,7 +62,7 @@ func TestRestart(t *testing.T) {
 }
 
 func TestShutdown_DeleteDeployments(t *testing.T) {
-	cmd := exec.Command("go", "run", "main.go", "start")
+	cmd := exec.Command("go", "run", "main.go", "run")
 	cmd.Dir = ".."
 	cmd.Stdout = os.Stdout
 	if cmd.Start() != nil {
@@ -91,11 +92,11 @@ func applyNC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read config: %s", err)
 	}
-	res, err := fetch.Post[server.PostResponse]("", configs)
+	if len(configs) != 1 {
+		t.Fatalf("expected 1 config, got=%d", len(configs))
+	}
+	res, err := fetch.Post[fetch.Empty]("", configs[0].Spec.(common.DeploymentSpec))
 	if err != nil {
 		t.Fatal("failed to apply configs", err, res)
-	}
-	if res.Success != 1 {
-		t.Fatalf("failed to apply config: %s", res.Error)
 	}
 }
