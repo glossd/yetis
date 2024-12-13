@@ -10,54 +10,54 @@ import (
 
 // todo presist in sqlite
 // name->pid
-var deploymentStore = sync.Map{}
+var deploymentStore = common.Map[string, deployment]{}
 
 type deployment struct {
 	pid       int
 	logPath   string
 	restarts  int
-	status    DeploymentStatus
+	status    ProcessStatus
 	createdAt time.Time
-	config    common.DeploymentSpec
+	spec      common.DeploymentSpec
 }
 
-type DeploymentStatus int
+type ProcessStatus int
 
 const (
-	Pending DeploymentStatus = iota
+	Pending ProcessStatus = iota
 	Running
 	Failed
 	Terminating
 )
 
-var processStatusMap = map[DeploymentStatus]string{
+var processStatusMap = map[ProcessStatus]string{
 	Pending:     "Pending",
 	Running:     "Running",
 	Failed:      "Failed",
 	Terminating: "Terminating",
 }
 
-func (pc DeploymentStatus) String() string {
+func (pc ProcessStatus) String() string {
 	return processStatusMap[pc]
 }
 
 var writeLock sync.Mutex
 
-func saveDeployment(c common.DeploymentSpec, pid int) bool {
+func firstSaveDeployment(c common.DeploymentSpec) bool {
 	writeLock.Lock()
 	defer writeLock.Unlock()
-	_, ok := getDeployment(c.Name)
+	_, ok := deploymentStore.Load(c.Name)
 	if ok {
 		return false
 	}
-	deploymentStore.Store(c.Name, deployment{pid: pid, restarts: 0, createdAt: time.Now(), config: c})
+	deploymentStore.Store(c.Name, deployment{createdAt: time.Now(), spec: c})
 	return true
 }
 
 func updateDeployment(name string, pid int, logPath string, incRestarts bool) error {
 	writeLock.Lock()
 	defer writeLock.Unlock()
-	d, ok := getDeployment(name)
+	d, ok := deploymentStore.Load(name)
 	if !ok {
 		return fmt.Errorf("deployment %s doesn't exist", name)
 	}
@@ -70,7 +70,7 @@ func updateDeployment(name string, pid int, logPath string, incRestarts bool) er
 	return nil
 }
 
-func updateDeploymentStatus(name string, status DeploymentStatus) {
+func updateDeploymentStatus(name string, status ProcessStatus) {
 	writeLock.Lock()
 	defer writeLock.Unlock()
 	v, ok := deploymentStore.Load(name)
@@ -78,25 +78,12 @@ func updateDeploymentStatus(name string, status DeploymentStatus) {
 		log.Printf("tried to update status but deployment '%s' doesn't exist\n", name)
 		return
 	}
-	p := v.(deployment)
-	p.status = status
-	deploymentStore.Store(name, p)
-}
-
-func getDeploymentPid(name string) int {
-	v, ok := getDeployment(name)
-	if !ok {
-		return 0
-	}
-	return v.pid
+	v.status = status
+	deploymentStore.Store(name, v)
 }
 
 func getDeployment(name string) (deployment, bool) {
-	v, ok := deploymentStore.Load(name)
-	if !ok {
-		return deployment{}, false
-	}
-	return v.(deployment), true
+	return deploymentStore.Load(name)
 }
 
 func deleteDeployment(name string) {
@@ -104,12 +91,7 @@ func deleteDeployment(name string) {
 }
 
 func rangeDeployments(f func(name string, p deployment)) {
-	deploymentStore.Range(func(key, value any) bool {
-		k := key.(string)
-		v, ok := value.(deployment)
-		if !ok {
-			return true
-		}
+	deploymentStore.Range(func(k string, v deployment) bool {
 		f(k, v)
 		return true
 	})

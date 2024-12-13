@@ -46,8 +46,21 @@ func setDeploymentPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error
 	return c, nil
 }
 
+func getDeploymentPort(s common.DeploymentSpec) int {
+	for _, envVar := range s.Env {
+		if envVar.Name == "YETIS_PORT" {
+			port, err := strconv.Atoi(envVar.Value)
+			if err != nil {
+				return 0
+			}
+			return port
+		}
+	}
+	return 0
+}
+
 func startDeployment(c common.DeploymentSpec) error {
-	ok := saveDeployment(c, 0)
+	ok := firstSaveDeployment(c)
 	if !ok {
 		return fmt.Errorf("deployment '%s' already exists", c.Name)
 	}
@@ -75,7 +88,7 @@ type DeploymentView struct {
 	Command  string
 }
 
-func List(_ fetch.Empty) ([]DeploymentView, error) {
+func ListDeployment(_ fetch.Empty) ([]DeploymentView, error) {
 	var res []DeploymentView
 	rangeDeployments(func(name string, p deployment) {
 		res = append(res, DeploymentView{
@@ -84,7 +97,7 @@ func List(_ fetch.Empty) ([]DeploymentView, error) {
 			Pid:      p.pid,
 			Restarts: p.restarts,
 			Age:      ageSince(p.createdAt),
-			Command:  p.config.Cmd,
+			Command:  p.spec.Cmd,
 		})
 	})
 
@@ -122,12 +135,12 @@ type GetResponse struct {
 	Config   common.DeploymentSpec
 }
 
-func Get(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
+func GetDeployment(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
 	name := r.PathValues["name"]
 	if name == "" {
 		return nil, fmt.Errorf("name can't be empty")
 	}
-	p, ok := getDeployment(name)
+	p, ok := deploymentStore.Load(name)
 	if !ok {
 		return nil, fmt.Errorf("name '%s' doesn't exist", name)
 	}
@@ -138,11 +151,11 @@ func Get(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
 		Status:   p.status.String(),
 		Age:      ageSince(p.createdAt),
 		LogPath:  p.logPath,
-		Config:   p.config,
+		Config:   p.spec,
 	}, nil
 }
 
-func Delete(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+func DeleteDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	name := r.PathValues["name"]
 	if name == "" {
 		return nil, fmt.Errorf(`name can't be empty`)

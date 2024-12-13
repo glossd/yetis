@@ -92,7 +92,7 @@ func TestRunLivenessSuccess(t *testing.T) {
 	assertD(t, Running, 1)
 }
 
-func assertD(t *testing.T, status DeploymentStatus, restarts int) {
+func assertD(t *testing.T, status ProcessStatus, restarts int) {
 	t.Helper()
 	d, ok := getDeployment("liveness")
 	assert(t, ok, true)

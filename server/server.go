@@ -25,10 +25,16 @@ func Run() {
 		},
 	})
 	mux.HandleFunc("GET /info", fetch.ToHandlerFunc(Info))
-	mux.HandleFunc("GET /deployments", fetch.ToHandlerFunc(List))
-	mux.HandleFunc("GET /deployments/{name}", fetch.ToHandlerFunc(Get))
+
+	mux.HandleFunc("GET /deployments", fetch.ToHandlerFunc(ListDeployment))
+	mux.HandleFunc("GET /deployments/{name}", fetch.ToHandlerFunc(GetDeployment))
 	mux.HandleFunc("POST /deployments", fetch.ToHandlerFunc(PostDeployment))
-	mux.HandleFunc("DELETE /deployments/{name}", fetch.ToHandlerFunc(Delete))
+	mux.HandleFunc("DELETE /deployments/{name}", fetch.ToHandlerFunc(DeleteDeployment))
+
+	mux.HandleFunc("GET /services", fetch.ToHandlerFunc(ListService))
+	mux.HandleFunc("GET /services/{name}", fetch.ToHandlerFunc(GetService))
+	mux.HandleFunc("POST /services", fetch.ToHandlerFunc(PostService))
+	mux.HandleFunc("DELETE /services/{name}", fetch.ToHandlerFunc(DeleteService))
 
 	runWithGracefulShutDown(mux)
 }
@@ -75,7 +81,7 @@ func deleteDeploymentsGracefully() {
 	rangeDeployments(func(name string, p deployment) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_, err := Delete(fetch.Request[fetch.Empty]{
+		_, err := DeleteDeployment(fetch.Request[fetch.Empty]{
 			Context:    ctx,
 			PathValues: map[string]string{"name": name},
 		})

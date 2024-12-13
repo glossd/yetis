@@ -49,12 +49,6 @@ Add flag `-w` to watch the updates
 ## Configuration examples
 ### Deployment with Service
 ```yaml
-kind: Service
-spec:
-  port: 4567
-  selector:
-    name: frontend
----
 kind: Deployment
 spec:
   name: frontend
@@ -65,6 +59,12 @@ spec:
   env:
     - name: APP_PORT # If you configure a Service, your app shouldn't have a static port.
       value: $YETIS_PORT
+---
+kind: Service
+spec:
+  port: 2345
+  selector:
+    name: frontend
 ```
 ### Deployment without Service 
 ```yaml

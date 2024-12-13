@@ -30,7 +30,7 @@ func TestRestart(t *testing.T) {
 		f(dr)
 	}
 
-	checkSR := func(description string, s server.DeploymentStatus, restarts int) {
+	checkSR := func(description string, s server.ProcessStatus, restarts int) {
 		check(func(r server.GetResponse) {
 			if r.Status != s.String() {
 				t.Fatalf("%s: expected %s status, got %s, restarts %d", description, s.String(), r.Status, r.Restarts)
@@ -88,7 +88,7 @@ func applyNC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	configs, err := common.ReadConfigs(fullPath + "/nc/nc.yaml")
+	configs, err := common.ReadConfigs(fullPath + "/specs/nc.yaml")
 	if err != nil {
 		t.Fatalf("failed to read config: %s", err)
 	}
