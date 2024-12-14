@@ -51,12 +51,12 @@ func main() {
 		fallthrough
 	case "get":
 		if len(args) == 2 {
-			client.List()
+			client.GetDeployments()
 			return
 		}
 		switch args[2] {
 		case "-w":
-			client.ListWatch()
+			client.WatchGetDeployments()
 		default:
 			printFlags("list", "-w  watches for new updates")
 			return

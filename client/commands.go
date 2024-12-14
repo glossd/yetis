@@ -20,7 +20,7 @@ import (
 var baseHost = fmt.Sprintf("http://127.0.0.1:%d", server.YetisServerPort)
 
 func init() {
-	var baseURL = fmt.Sprintf(baseHost + "/deployments")
+	var baseURL = fmt.Sprintf(baseHost)
 	fetch.SetBaseURL(baseURL)
 }
 
@@ -42,20 +42,24 @@ func StartBackground(logdir string) {
 }
 
 func Info() {
-	get, err := fetch.Get[server.InfoResponse](baseHost + "/info")
+	get, err := fetch.Get[server.InfoResponse]("/info")
 	if err != nil {
 		fmt.Println("Server hasn't responded", err)
 	}
 	fmt.Printf("Server: version=%s, deployments=%d\n", get.Version, get.NumberOfDeployments)
 }
 
-func List() {
+func GetDeployments() {
 	versionsWarning()
 	printDeploymentTable()
 }
 
+func WatchGetDeployments() {
+	watch(printDeploymentTable)
+}
+
 func printDeploymentTable() (int, bool) {
-	views, err := fetch.Get[[]server.DeploymentView]("")
+	views, err := fetch.Get[[]server.DeploymentView]("/deployments")
 	if err != nil {
 		fmt.Println(err)
 		return 0, false
@@ -72,13 +76,13 @@ func printDeploymentTable() (int, bool) {
 
 const upLine = "\033[A"
 
-func ListWatch() {
+func watch(f func() (int, bool)) {
 	var returnToStart string
 	preventSignalInterrupt()
 	for {
 		os.Stdout.WriteString(returnToStart)
 		returnToStart = ""
-		num, ok := printDeploymentTable()
+		num, ok := f()
 		if !ok {
 			return
 		}
@@ -103,7 +107,7 @@ func preventSignalInterrupt() {
 
 func Describe(name string) {
 	versionsWarning()
-	r, err := fetch.Get[server.GetResponse]("/" + name)
+	r, err := fetch.Get[server.GetResponse]("/deployments/" + name)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -124,7 +128,7 @@ func Describe(name string) {
 
 func Delete(name string) {
 	versionsWarning()
-	_, err := fetch.Delete[fetch.Empty]("/" + name)
+	_, err := fetch.Delete[fetch.Empty]("/deployments/" + name)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -132,29 +136,41 @@ func Delete(name string) {
 	}
 }
 
-func Apply(path string) {
+func Apply(path string) []error {
 	versionsWarning()
 	configs, err := common.ReadConfigs(path)
 	if err != nil {
 		fmt.Println(err)
-		return
+		return nil
 	}
+	var errs []error
 	for _, config := range configs {
 		switch config.Spec.Kind() {
 		case common.Deployment:
 			spec := config.Spec.(common.DeploymentSpec)
-			_, err := fetch.Post[fetch.Empty]("", spec)
+			_, err := fetch.Post[fetch.Empty]("/deployments", spec)
 			if err != nil {
+				errs = append(errs, err)
 				fmt.Printf("Failure applying %s deployment: %s\n", spec.Name, err)
 			} else {
 				fmt.Printf("Successfully applied %s deployment\n", spec.Name)
 			}
+		case common.Service:
+			spec := config.Spec.(common.ServiceSpec)
+			_, err := fetch.Post[fetch.Empty]("/services", spec)
+			if err != nil {
+				errs = append(errs, err)
+				fmt.Printf("Failure applying service for %s deployment: %s\n", spec.Selector.Name, err)
+			} else {
+				fmt.Printf("Successfully applied service for %s deployment\n", spec.Selector.Name)
+			}
 		}
 	}
+	return errs
 }
 
 func Logs(name string, stream bool) {
-	r, err := fetch.Get[server.GetResponse]("/" + name)
+	r, err := fetch.Get[server.GetResponse]("/deployments/" + name)
 	if err != nil {
 		fmt.Println(err)
 	} else {

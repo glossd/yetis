@@ -63,6 +63,7 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 	log.Println("Shutting down Yetis server...")
 
 	deleteDeploymentsGracefully()
+	deleteServicesGracefully()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -88,7 +89,24 @@ func deleteDeploymentsGracefully() {
 		if err == nil {
 			log.Println("Deleted", name)
 		} else {
-			log.Printf("Failed to delete %s: %s\n", name, err)
+			log.Printf("Failed to delete %s deployment: %s\n", name, err)
 		}
+	})
+}
+
+func deleteServicesGracefully() {
+	serviceStore.Range(func(name string, value service) bool {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, err := DeleteService(fetch.Request[fetch.Empty]{
+			Context:    ctx,
+			PathValues: map[string]string{"name": name},
+		})
+		if err == nil {
+			log.Println("Deleted service for", name)
+		} else {
+			log.Printf("Failed to delete service for %s: %s\n", name, err)
+		}
+		return true
 	})
 }

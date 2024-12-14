@@ -1,0 +1,11 @@
+kind: Deployment
+spec:
+  name: my-listener
+  cmd: nc -lk $YETIS_PORT
+  logdir: stdout
+---
+kind: Service
+spec:
+  port: 27000
+  selector:
+    name: my-listener

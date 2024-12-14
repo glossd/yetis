@@ -8,15 +8,15 @@ import (
 	"github.com/glossd/yetis/proxy"
 )
 
-type ListView struct {
+type ServiceView struct {
 	Pid          int
 	SelectorName string
 }
 
-func ListService(_ fetch.Empty) ([]ListView, error) {
-	var res []ListView
+func ListService(_ fetch.Empty) ([]ServiceView, error) {
+	var res []ServiceView
 	serviceStore.Range(func(k string, v service) bool {
-		res = append(res, ListView{
+		res = append(res, ServiceView{
 			Pid:          v.pid,
 			SelectorName: v.spec.Selector.Name,
 		})
@@ -53,7 +53,7 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	deploymentPort := getDeploymentPort(dep.spec)
 	pid, err := proxy.Exec(spec.Port, deploymentPort)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start proxy: %s", err)
+		return nil, fmt.Errorf("failed to start service: %s", err)
 	}
 	err = updateService(spec, pid, Pending, deploymentPort)
 	if err != nil {

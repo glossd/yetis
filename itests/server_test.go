@@ -23,7 +23,7 @@ func TestRestart(t *testing.T) {
 	defer unix.KillByPort(27000)
 
 	check := func(f func(server.GetResponse)) {
-		dr, err := fetch.Get[server.GetResponse]("/hello")
+		dr, err := fetch.Get[server.GetResponse]("/deployments/hello")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -83,20 +83,44 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 
 func applyNC(t *testing.T) {
 	t.Helper()
-	fullPath, err := os.Getwd()
+
+	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+}
+
+func TestProxyFromServiceToDeployment(t *testing.T) {
+	go server.Run()
+	defer server.Stop()
+	// let the server start
+	time.Sleep(5 * time.Millisecond)
+
+	errs := client.Apply(pwd(t) + "/specs/nc-with-service.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+
+	deps, err := fetch.Get[[]server.DeploymentView]("/deployments")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(deps) != 1 {
+		t.Fatalf("got deployments: %v", deps)
+	}
+	sers, err := fetch.Get[[]server.ServiceView]("/services")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sers) != 1 {
+		t.Fatalf("got services: %v", sers)
+	}
+}
 
-	configs, err := common.ReadConfigs(fullPath + "/specs/nc.yaml")
+func pwd(t *testing.T) string {
+	fullPath, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("failed to read config: %s", err)
+		t.Fatalf("pwd: %s", err)
 	}
-	if len(configs) != 1 {
-		t.Fatalf("expected 1 config, got=%d", len(configs))
-	}
-	res, err := fetch.Post[fetch.Empty]("", configs[0].Spec.(common.DeploymentSpec))
-	if err != nil {
-		t.Fatal("failed to apply configs", err, res)
-	}
+	return fullPath
 }
