@@ -31,6 +31,7 @@ const (
 type Spec interface {
 	Validate() error
 	Kind() Kind
+	WithDefaults() Spec
 }
 
 type ServiceSpec struct {
@@ -50,6 +51,10 @@ func (ss ServiceSpec) Validate() error {
 
 func (ss ServiceSpec) Kind() Kind {
 	return Service
+}
+
+func (ss ServiceSpec) WithDefaults() Spec {
+	return ss
 }
 
 type Selector struct {
@@ -82,6 +87,25 @@ func (ds DeploymentSpec) Validate() error {
 
 func (ds DeploymentSpec) Kind() Kind {
 	return Deployment
+}
+
+func (ds DeploymentSpec) WithDefaults() Spec {
+	if ds.LivenessProbe.InitialDelaySeconds == 0 {
+		ds.LivenessProbe.InitialDelaySeconds = 10
+	}
+	if ds.LivenessProbe.PeriodSeconds == 0 {
+		ds.LivenessProbe.PeriodSeconds = 10
+	}
+	if ds.LivenessProbe.FailureThreshold == 0 {
+		ds.LivenessProbe.FailureThreshold = 3
+	}
+	if ds.LivenessProbe.SuccessThreshold == 0 {
+		ds.LivenessProbe.SuccessThreshold = 1
+	}
+	if ds.Strategy.Type == "" {
+		ds.Strategy.Type = Recreate
+	}
+	return ds
 }
 
 type Probe struct {
@@ -177,24 +201,9 @@ func setDefault(defaultPath string, configs []Config) []Config {
 			if spec.Logdir == "" {
 				spec.Logdir = defaultPath
 			}
-			if spec.LivenessProbe.InitialDelaySeconds == 0 {
-				spec.LivenessProbe.InitialDelaySeconds = 10
-			}
-			if spec.LivenessProbe.PeriodSeconds == 0 {
-				spec.LivenessProbe.PeriodSeconds = 10
-			}
-			if spec.LivenessProbe.FailureThreshold == 0 {
-				spec.LivenessProbe.FailureThreshold = 3
-			}
-			if spec.LivenessProbe.SuccessThreshold == 0 {
-				spec.LivenessProbe.SuccessThreshold = 1
-			}
-			if spec.Strategy.Type == "" {
-				spec.Strategy.Type = Recreate
-			}
 			config.Spec = spec
 		}
-
+		config.Spec = config.Spec.WithDefaults()
 		newConfigs = append(newConfigs, config)
 	}
 	return newConfigs

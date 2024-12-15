@@ -6,19 +6,24 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/proxy"
+	"log"
 )
 
 type ServiceView struct {
-	Pid          int
-	SelectorName string
+	Pid            int
+	Port           int
+	SelectorName   string
+	DeploymentPort int
 }
 
 func ListService(_ fetch.Empty) ([]ServiceView, error) {
 	var res []ServiceView
 	serviceStore.Range(func(k string, v service) bool {
 		res = append(res, ServiceView{
-			Pid:          v.pid,
-			SelectorName: v.spec.Selector.Name,
+			Pid:            v.pid,
+			Port:           v.spec.Port,
+			DeploymentPort: v.deploymentPort,
+			SelectorName:   v.spec.Selector.Name,
 		})
 		return true
 	})
@@ -55,6 +60,7 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start service: %s", err)
 	}
+	log.Printf("launched service for %s deployment on port %d to port %d", spec.Selector.Name, spec.Port, deploymentPort)
 	err = updateService(spec, pid, Pending, deploymentPort)
 	if err != nil {
 		return nil, err

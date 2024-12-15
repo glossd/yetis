@@ -17,6 +17,12 @@ func PostDeployment(spec common.DeploymentSpec) (*fetch.Empty, error) {
 	if err != nil {
 		return nil, err
 	}
+	spec = spec.WithDefaults().(common.DeploymentSpec)
+	err = spec.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("deployment %s spec is invalid: %s", spec.Name, err)
+	}
+
 	err = startDeployment(spec)
 	if err != nil {
 		return nil, err
@@ -84,24 +90,26 @@ func startDeployment(c common.DeploymentSpec) error {
 }
 
 type DeploymentView struct {
-	Name     string
-	Status   string
-	Pid      int
-	Restarts int
-	Age      string
-	Command  string
+	Name         string
+	Status       string
+	Pid          int
+	Restarts     int
+	Age          string
+	Command      string
+	LivenessPort int
 }
 
 func ListDeployment(_ fetch.Empty) ([]DeploymentView, error) {
 	var res []DeploymentView
 	rangeDeployments(func(name string, p deployment) {
 		res = append(res, DeploymentView{
-			Name:     name,
-			Status:   p.status.String(),
-			Pid:      p.pid,
-			Restarts: p.restarts,
-			Age:      ageSince(p.createdAt),
-			Command:  p.spec.Cmd,
+			Name:         name,
+			Status:       p.status.String(),
+			Pid:          p.pid,
+			Restarts:     p.restarts,
+			Age:          ageSince(p.createdAt),
+			Command:      p.spec.Cmd,
+			LivenessPort: p.spec.LivenessProbe.TcpSocket.Port,
 		})
 	})
 

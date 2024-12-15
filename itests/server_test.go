@@ -16,7 +16,7 @@ import (
 func TestRestart(t *testing.T) {
 	unix.KillByPort(server.YetisServerPort)
 	go server.Run()
-	defer server.Stop()
+	t.Cleanup(server.Stop)
 	// let the server start
 	time.Sleep(time.Millisecond)
 	applyNC(t)
@@ -90,9 +90,9 @@ func applyNC(t *testing.T) {
 	}
 }
 
-func TestProxyFromServiceToDeployment(t *testing.T) {
+func TestServiceUpdatesWhenDeploymentRestartsOnNewPort(t *testing.T) {
 	go server.Run()
-	defer server.Stop()
+	t.Cleanup(server.Stop)
 	// let the server start
 	time.Sleep(5 * time.Millisecond)
 
@@ -116,7 +116,13 @@ func TestProxyFromServiceToDeployment(t *testing.T) {
 		t.Fatalf("got services: %v", sers)
 	}
 
-	time.Sleep(300 * time.Millisecond)
+	if !common.IsPortOpenRetry(sers[0].Port, 50*time.Millisecond, 20) {
+		t.Fatal("service port closed", sers[0].Port)
+	}
+	if !common.IsPortOpenRetry(sers[0].DeploymentPort, 50*time.Millisecond, 20) {
+		t.Fatal("deployment port closed", sers[0].DeploymentPort)
+	}
+
 	res, err := fetch.Get[string]("http://localhost:27000/hello")
 	if err != nil {
 		t.Fatal(err)

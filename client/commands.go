@@ -76,18 +76,18 @@ func printDeploymentTable() (int, bool) {
 
 const upLine = "\033[A"
 
-func watch(f func() (int, bool)) {
+func watch(f func() (numberOfLines int, ok bool)) {
 	var returnToStart string
 	preventSignalInterrupt()
 	for {
 		os.Stdout.WriteString(returnToStart)
 		returnToStart = ""
-		num, ok := f()
+		numberOfLines, ok := f()
 		if !ok {
 			return
 		}
 		returnToStart = upLine
-		for i := 0; i < num; i++ {
+		for i := 0; i < numberOfLines; i++ {
 			returnToStart += upLine
 		}
 		returnToStart += "\r"

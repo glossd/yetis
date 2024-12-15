@@ -87,7 +87,7 @@ func deleteDeploymentsGracefully() {
 			PathValues: map[string]string{"name": name},
 		})
 		if err == nil {
-			log.Println("Deleted", name)
+			log.Println("Deleted deployment", name)
 		} else {
 			log.Printf("Failed to delete %s deployment: %s\n", name, err)
 		}
