@@ -46,6 +46,10 @@ func setDeploymentPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error
 	return c, nil
 }
 
+func isYetisPortUsed(c common.DeploymentSpec) bool {
+	return getDeploymentPort(c) == c.LivenessProbe.TcpSocket.Port
+}
+
 func getDeploymentPort(s common.DeploymentSpec) int {
 	for _, envVar := range s.Env {
 		if envVar.Name == "YETIS_PORT" {

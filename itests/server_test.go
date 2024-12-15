@@ -96,7 +96,7 @@ func TestProxyFromServiceToDeployment(t *testing.T) {
 	// let the server start
 	time.Sleep(5 * time.Millisecond)
 
-	errs := client.Apply(pwd(t) + "/specs/nc-with-service.yaml")
+	errs := client.Apply(pwd(t) + "/specs/main-with-service.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
@@ -114,6 +114,15 @@ func TestProxyFromServiceToDeployment(t *testing.T) {
 	}
 	if len(sers) != 1 {
 		t.Fatalf("got services: %v", sers)
+	}
+
+	time.Sleep(300 * time.Millisecond)
+	res, err := fetch.Get[string]("http://localhost:27000/hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != "OK" {
+		t.Fatalf("wrong response %v", res)
 	}
 }
 
