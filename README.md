@@ -35,15 +35,17 @@ Add flag `-w` to watch the updates
 
 #### Full list of commands
 ```
-	start [-d]       start Yetis server
-	shutdown         terminate Yetis server
-	info             print server status
-	apply -f {path}  create new deployments from yaml configuration starting its processes
-	list [-w]        list the managed deployments
-	logs [-f] {name} print the logs of a deployment
-	describe {name}  get full info of the deployment
-	delete {name}    delete the deployment terminating its process
-	help             print the list of the commands
+Server Commands:
+	start [-d]              start Yetis server
+	shutdown                terminate Yetis server
+	info                    print server status
+Resources Commands:
+	apply -f FILENAME       apply a configuration from yaml file.
+	get [-w] KIND           print a list the managed resources.
+	logs [-f] NAME          print the logs of the deployment with NAME
+	describe KIND NAME      Print a detailed description of the selected resource
+	delete KIND NAME        delete the resource, terminating its process
+	help                    print the list of the commands
 ```
 
 ## Configuration examples

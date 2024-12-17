@@ -54,8 +54,17 @@ func GetDeployments() {
 	printDeploymentTable()
 }
 
+func GetServices() {
+	versionsWarning()
+	printServiceTable()
+}
+
 func WatchGetDeployments() {
 	watch(printDeploymentTable)
+}
+
+func WatchGetServices() {
+	watch(printServiceTable)
 }
 
 func printDeploymentTable() (int, bool) {
@@ -68,6 +77,22 @@ func printDeploymentTable() (int, bool) {
 		fmt.Fprintln(tw, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND")
 		for _, d := range views {
 			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command))
+		}
+		tw.Flush()
+		return len(views), true
+	}
+}
+
+func printServiceTable() (int, bool) {
+	views, err := fetch.Get[[]server.ServiceView]("/services")
+	if err != nil {
+		fmt.Println(err)
+		return 0, false
+	} else {
+		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(tw, "DEPLOYMENT\tPORT\tDEPLOYMENTPORT\tPID")
+		for _, s := range views {
+			fmt.Fprintln(tw, fmt.Sprintf("%s\t%d\t%d\t%d", s.SelectorName, s.Port, s.DeploymentPort, s.Pid))
 		}
 		tw.Flush()
 		return len(views), true
@@ -105,7 +130,7 @@ func preventSignalInterrupt() {
 	}()
 }
 
-func Describe(name string) {
+func DescribeDeployment(name string) {
 	versionsWarning()
 	r, err := fetch.Get[server.GetResponse]("/deployments/" + name)
 	if err != nil {
@@ -126,13 +151,38 @@ func Describe(name string) {
 	}
 }
 
-func Delete(name string) {
+func DescribeService(selectorName string) {
+	versionsWarning()
+	r, err := fetch.Get[server.GetServiceResponse]("/services/" + selectorName)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		buf := bytes.Buffer{}
+		buf.WriteString(fmt.Sprintf("PID: %d\n", r.Pid))
+		buf.WriteString(fmt.Sprintf("Port: %d\n", r.Port))
+		buf.WriteString(fmt.Sprintf("SelectorName: %s\n", r.SelectorName))
+		buf.WriteString(fmt.Sprintf("DeploymentPort: %d\n", r.DeploymentPort))
+		fmt.Println(buf.String())
+	}
+}
+
+func DeleteDeployment(name string) {
 	versionsWarning()
 	_, err := fetch.Delete[fetch.Empty]("/deployments/" + name)
 	if err != nil {
 		fmt.Println(err)
 	} else {
-		fmt.Printf("Successfully deleted '%s'\n", name)
+		fmt.Printf("Successfully deleted '%s' deployment\n", name)
+	}
+}
+
+func DeleteService(selectorName string) {
+	versionsWarning()
+	_, err := fetch.Delete[fetch.Empty]("/services/" + selectorName)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Printf("Successfully deleted service for '%s'\n", selectorName)
 	}
 }
 
