@@ -111,6 +111,8 @@ func checkLiveness(deploymentName string, restartsLimit int) bool {
 		if err != nil {
 			log.Printf("Liveness restarted deployment, but failed to restart service: %s", err)
 		}
+		// wait for initial delay
+		time.Sleep(c.LivenessProbe.InitialDelayDuration())
 		return false
 	}
 	if tsh.SuccessCount >= c.LivenessProbe.SuccessThreshold {

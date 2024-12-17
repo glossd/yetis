@@ -5,7 +5,7 @@ spec:
   cmd: ./main
   logdir: stdout
   livenessProbe:
-    initialDelaySeconds: 0.5
+    initialDelaySeconds: 1
     periodSeconds: 0.1
     failureThreshold: 2
     successThreshold: 1

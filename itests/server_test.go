@@ -72,7 +72,9 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 		t.Fatal("failed to start Yetis")
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	if !common.IsPortOpenRetry(server.YetisServerPort, 50*time.Millisecond, 20) {
+		t.Fatal("yetis server hasn't started")
+	}
 	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
@@ -89,7 +91,6 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 }
 
 func TestServiceUpdatesWhenDeploymentRestartsOnNewPort(t *testing.T) {
-	// fixme it's flaky
 	go server.Run()
 	t.Cleanup(server.Stop)
 	// let the server start
@@ -153,10 +154,13 @@ func TestServiceUpdatesWhenDeploymentRestartsOnNewPort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(newDeps) != 1 {
+		t.Fatalf("expected one go deployment, got=%v", newDeps)
+	}
 	if deps[0].LivenessPort == newDeps[0].LivenessPort {
 		t.Fatal("same deployment port, no restart")
 	}
-	if !common.IsPortOpenRetry(newDeps[0].LivenessPort, 50*time.Millisecond, 60) {
+	if !common.IsPortOpenRetry(newDeps[0].LivenessPort, 50*time.Millisecond, 20) {
 		t.Fatal("new deployment port closed", newDeps[0].LivenessPort)
 	}
 	if !common.IsPortOpenRetry(sers[0].Port, 50*time.Millisecond, 20) {

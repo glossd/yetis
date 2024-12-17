@@ -54,7 +54,7 @@ spec:
   name: frontend
   cmd: npm start
   workdir: /home/user/myfront
-  strategy:
+  strategy: # WIP
     type: RollingUpdate
   env:
     - name: APP_PORT # If you configure a Service, your app shouldn't have a static port.
@@ -97,7 +97,7 @@ spec:
   cmd: java HelloWorld
   workdir: /home/user/myproject # Directory where command is executed. Defaults to the path in 'apply -f'. 
   logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to the path in 'apply -f'.
-  strategy:
+  strategy: # WIP
     type: Recreate # Recreate or RollingUpdate. Defaults to Recreate. RollingUpdate should be specified only with Service 
   livenessProbe: # Checks if the command is alive and if not then restarts it
     tcpSocket:
