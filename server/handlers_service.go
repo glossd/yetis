@@ -7,6 +7,7 @@ import (
 	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/proxy"
 	"log"
+	"time"
 )
 
 type ServiceView struct {
@@ -39,7 +40,7 @@ func GetService(in fetch.Request[fetch.Empty]) (*GetServiceResponse, error) {
 	name := in.PathValues["name"]
 	ser, ok := serviceStore.Load(name)
 	if !ok {
-		return nil, fmt.Errorf("service for '%s' not found", name)
+		return nil, serviceNotFound(name)
 	}
 	return &GetServiceResponse{
 		Pid:          ser.pid,
@@ -50,6 +51,9 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	dep, ok := getDeployment(spec.Selector.Name)
 	if !ok {
 		return nil, fmt.Errorf("selected deployment '%s' doesn't exist", spec.Selector.Name)
+	}
+	if common.IsPortOpenTimeout(spec.Port, 100*time.Millisecond) {
+		return nil, fmt.Errorf("service port %d already occupied", spec.Port)
 	}
 	err := firstSaveService(spec)
 	if err != nil {
@@ -74,11 +78,36 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	name := in.PathValues["name"]
 	ser, ok := serviceStore.Load(name)
 	if !ok {
-		return nil, fmt.Errorf("service for '%s' not found", name)
+		return nil, serviceNotFound(name)
 	}
 	err := unix.TerminateProcess(in.Context, ser.pid)
 	if err != nil {
 		return nil, fmt.Errorf("service for '%s' failed to terminate: %s", name, err)
 	}
+	// todo instead of killing by port, terminate function should terminate all children as well.
+	unix.KillByPort(ser.spec.Port)
+	serviceStore.Delete(name)
 	return nil, nil
+}
+
+func RestartService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+	name := in.PathValues["name"]
+	serv, ok := serviceStore.Load(name)
+	if !ok {
+		return nil, serviceNotFound(name)
+	}
+	_, err := DeleteService(in)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete service: %s", err)
+	}
+
+	_, err = PostService(serv.spec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create service: %s", err)
+	}
+	return nil, nil
+}
+
+func serviceNotFound(name string) *fetch.Error {
+	return &fetch.Error{Status: 404, Msg: fmt.Sprintf("service for '%s' deployment not found", name)}
 }

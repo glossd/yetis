@@ -21,7 +21,7 @@ func TestRunLivenessToFailed(t *testing.T) {
 	var ticker = make(chan time.Time)
 	tick := func() {
 		ticker <- time.Now()
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 	err := startDeployment(config)
 	assert(t, err, nil)
@@ -67,7 +67,7 @@ func TestRunLivenessSuccess(t *testing.T) {
 	var ticker = make(chan time.Time)
 	tick := func() {
 		ticker <- time.Now()
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 	err := startDeployment(config)
 	assert(t, err, nil)

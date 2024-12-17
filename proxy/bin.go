@@ -13,7 +13,7 @@ import (
 var binary []byte
 
 func Exec(port, portTo int) (int, error) {
-	filePath := "/tmp/yetis-proxy"
+	const filePath = "/tmp/yetis-proxy"
 
 	if !proxyFileExists(filePath) {
 		log.Println("tcp proxy file doesn't exist, creating one...")

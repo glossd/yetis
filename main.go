@@ -6,6 +6,7 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/server"
 	"os"
+	"time"
 )
 
 func main() {
@@ -46,7 +47,7 @@ func main() {
 		}
 		client.StartBackground(logdir)
 	case "shutdown":
-		client.ShutdownServer()
+		client.ShutdownServer(5 * time.Minute)
 	case "list":
 		fallthrough
 	case "get":

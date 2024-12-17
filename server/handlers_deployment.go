@@ -37,17 +37,23 @@ func setDeploymentPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error
 	if err != nil {
 		return common.DeploymentSpec{}, fmt.Errorf("failed to assigned port: %s", err)
 	}
-	if c.LivenessProbe.TcpSocket.Port == 0 {
+	if c.LivenessProbe.TcpSocket.Port == 0 || isYetisPortUsed(c) {
 		c.LivenessProbe.TcpSocket.Port = deploymentPort
 	}
-	newEnvs := []common.EnvVar{{Name: "YETIS_PORT", Value: strconv.Itoa(deploymentPort)}}
+
+	var newEnvs []common.EnvVar
 	for _, envVar := range c.Env {
+		if envVar.Name == "YETIS_PORT" {
+			// remove old YETIS_PORT env
+			continue
+		}
 		if envVar.Value == "$YETIS_PORT" {
 			newEnvs = append(newEnvs, common.EnvVar{Name: envVar.Name, Value: strconv.Itoa(deploymentPort)})
 		} else {
 			newEnvs = append(newEnvs, envVar)
 		}
 	}
+	newEnvs = append(newEnvs, common.EnvVar{Name: "YETIS_PORT", Value: strconv.Itoa(deploymentPort)})
 	c.Env = newEnvs
 	return c, nil
 }
@@ -79,7 +85,7 @@ func startDeployment(c common.DeploymentSpec) error {
 		deleteDeployment(c.Name)
 		return err
 	}
-	err = updateDeployment(c.Name, pid, logPath, false)
+	err = updateDeployment(c, pid, logPath, false)
 	if err != nil {
 		// For this to happen, delete must finish first before launching,
 		// which is hard to imagine because start is asynchronous and delete is synchronous.
@@ -144,7 +150,7 @@ type GetResponse struct {
 	Status   string
 	Age      string
 	LogPath  string
-	Config   common.DeploymentSpec
+	Spec     common.DeploymentSpec
 }
 
 func GetDeployment(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
@@ -163,7 +169,7 @@ func GetDeployment(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
 		Status:   p.status.String(),
 		Age:      ageSince(p.createdAt),
 		LogPath:  p.logPath,
-		Config:   p.spec,
+		Spec:     p.spec,
 	}, nil
 }
 
@@ -184,6 +190,9 @@ func DeleteDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 			return nil, err
 		}
 	}
+	// todo instead of killing by port, terminate function should terminate all children as well.
+	unix.KillByPort(d.spec.LivenessProbe.TcpSocket.Port)
+
 	deleteDeployment(name)
 	return &fetch.Empty{}, nil
 }

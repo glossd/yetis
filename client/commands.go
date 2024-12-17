@@ -117,7 +117,7 @@ func Describe(name string) {
 		buf.WriteString(fmt.Sprintf("Status: %s\n", r.Status))
 		buf.WriteString(fmt.Sprintf("Age: %s\n", r.Age))
 		buf.WriteString(fmt.Sprintf("Log Path: %s\n", r.LogPath))
-		c, err := yaml.Marshal(r.Config)
+		c, err := yaml.Marshal(r.Spec)
 		if err != nil {
 			panic("failed to marshal config" + err.Error())
 		}
@@ -188,14 +188,14 @@ func IsServerRunning() bool {
 	return common.IsPortOpen(server.YetisServerPort)
 }
 
-func ShutdownServer() {
+func ShutdownServer(timeout time.Duration) {
 	pid, err := unix.GetPidByPort(server.YetisServerPort)
 	if err != nil {
 		fmt.Println("Couldn't get Yetis pid:", err)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	err = unix.TerminateProcess(ctx, pid)
 	if err != nil {

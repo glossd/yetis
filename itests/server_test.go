@@ -19,8 +19,11 @@ func TestRestart(t *testing.T) {
 	t.Cleanup(server.Stop)
 	// let the server start
 	time.Sleep(time.Millisecond)
-	applyNC(t)
-	defer unix.KillByPort(27000)
+
+	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
 
 	check := func(f func(server.GetResponse)) {
 		dr, err := fetch.Get[server.GetResponse]("/deployments/hello")
@@ -70,27 +73,23 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 	}
 
 	time.Sleep(500 * time.Millisecond)
-	applyNC(t)
+	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+
 	time.Sleep(25 * time.Millisecond)
 	if !common.IsPortOpen(27000) {
 		t.Fatal("nc haven't started")
 	}
-	client.ShutdownServer()
+	client.ShutdownServer(100 * time.Millisecond)
 	if common.IsPortOpen(27000) {
 		t.Fatal("nc should've stopped")
 	}
 }
 
-func applyNC(t *testing.T) {
-	t.Helper()
-
-	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
-	if len(errs) != 0 {
-		t.Fatalf("apply errors: %v", errs)
-	}
-}
-
 func TestServiceUpdatesWhenDeploymentRestartsOnNewPort(t *testing.T) {
+	// fixme it's flaky
 	go server.Run()
 	t.Cleanup(server.Stop)
 	// let the server start
@@ -123,13 +122,47 @@ func TestServiceUpdatesWhenDeploymentRestartsOnNewPort(t *testing.T) {
 		t.Fatal("deployment port closed", sers[0].DeploymentPort)
 	}
 
-	res, err := fetch.Get[string]("http://localhost:27000/hello")
+	checkOK := func() {
+		t.Helper()
+		res, err := fetch.Get[string]("http://localhost:27000/hello", fetch.Config{Timeout: 100 * time.Millisecond})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res != "OK" {
+			t.Fatalf("wrong response %v", res)
+		}
+	}
+	checkOK()
+
+	err = unix.KillByPort(deps[0].LivenessPort)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res != "OK" {
-		t.Fatalf("wrong response %v", res)
+	for {
+		deps, err := fetch.Get[[]server.DeploymentView]("/deployments")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if deps[0].Restarts == 1 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
+
+	newDeps, err := server.ListDeployment(fetch.Empty{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deps[0].LivenessPort == newDeps[0].LivenessPort {
+		t.Fatal("same deployment port, no restart")
+	}
+	if !common.IsPortOpenRetry(newDeps[0].LivenessPort, 50*time.Millisecond, 60) {
+		t.Fatal("new deployment port closed", newDeps[0].LivenessPort)
+	}
+	if !common.IsPortOpenRetry(sers[0].Port, 50*time.Millisecond, 20) {
+		t.Fatal("service port closed", sers[0].Port)
+	}
+	checkOK()
 }
 
 func pwd(t *testing.T) string {

@@ -1,4 +1,4 @@
-# Yetis <img src=".github/yetigopher.png" width="92" align="center" alt="i"/>
+# Yetis WIP <img src=".github/yetigopher.png" width="92" align="center" alt="i"/>
 Kubernetes for linux processes running on a single machine.
 
 ### Use Case
@@ -93,6 +93,7 @@ spec:
 kind: Deployment
 spec:
   name: hello-world # Must be unique
+  preCmd: javac HelloWorld.java # Command to execute before the starting the process.  
   cmd: java HelloWorld
   workdir: /home/user/myproject # Directory where command is executed. Defaults to the path in 'apply -f'. 
   logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to the path in 'apply -f'.

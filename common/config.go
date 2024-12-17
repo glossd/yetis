@@ -64,6 +64,7 @@ type Selector struct {
 type DeploymentSpec struct {
 	Name          string
 	Cmd           string
+	PreCmd        string
 	Workdir       string
 	Logdir        string
 	Strategy      DeploymentStrategy

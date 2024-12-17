@@ -20,7 +20,7 @@ func Start(listenPort, toPort int) {
 			log.Println("Accept error:", err)
 			return
 		}
-		proxyTo(c, toPort)
+		go proxyTo(c, toPort)
 	}
 }
 

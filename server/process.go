@@ -31,6 +31,14 @@ func launchProcess(c common.DeploymentSpec) (pid int, logPath string, err error)
 }
 
 func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int, error) {
+	if c.PreCmd != "" {
+		cmd := exec.Command("sh", "-c", c.PreCmd)
+		cmd.Dir = c.Workdir
+		err := cmd.Run()
+		if err != nil {
+			return 0, fmt.Errorf("running precmd error: %s", err)
+		}
+	}
 	var ev strings.Builder
 	for i, envVar := range c.Env {
 		if i > 0 {

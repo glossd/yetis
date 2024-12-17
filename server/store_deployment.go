@@ -54,19 +54,20 @@ func firstSaveDeployment(c common.DeploymentSpec) bool {
 	return true
 }
 
-func updateDeployment(name string, pid int, logPath string, incRestarts bool) error {
+func updateDeployment(s common.DeploymentSpec, pid int, logPath string, incRestarts bool) error {
 	writeLock.Lock()
 	defer writeLock.Unlock()
-	d, ok := deploymentStore.Load(name)
+	d, ok := deploymentStore.Load(s.Name)
 	if !ok {
-		return fmt.Errorf("deployment %s doesn't exist", name)
+		return fmt.Errorf("deployment %s doesn't exist", s.Name)
 	}
 	d.pid = pid
 	d.logPath = logPath
 	if incRestarts {
 		d.restarts++
 	}
-	deploymentStore.Store(name, d)
+	d.spec = s
+	deploymentStore.Store(s.Name, d)
 	return nil
 }
 

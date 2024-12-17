@@ -35,11 +35,13 @@ func Run() {
 	mux.HandleFunc("GET /services/{name}", fetch.ToHandlerFunc(GetService))
 	mux.HandleFunc("POST /services", fetch.ToHandlerFunc(PostService))
 	mux.HandleFunc("DELETE /services/{name}", fetch.ToHandlerFunc(DeleteService))
+	mux.HandleFunc("PUT /services/{name}/restart", fetch.ToHandlerFunc(RestartService))
 
 	runWithGracefulShutDown(mux)
 }
 
 var quit = make(chan os.Signal)
+var finished = make(chan bool)
 
 // https://github.com/gin-gonic/examples/blob/master/graceful-shutdown/graceful-shutdown/server.go
 func runWithGracefulShutDown(r *http.ServeMux) {
@@ -72,10 +74,12 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 	}
 
 	log.Println("Yetis server exiting")
+	finished <- true
 }
 
 func Stop() {
 	quit <- syscall.SIGTERM
+	<-finished
 }
 
 func deleteDeploymentsGracefully() {

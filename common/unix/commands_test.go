@@ -89,7 +89,7 @@ func TestCatStream(t *testing.T) {
 	assert(t, err, nil)
 	_, err = f.WriteString("Hello\n")
 	assert(t, err, nil)
-	time.Sleep(5 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	assert(t, buf.String(), "Hello\n")
 	_, err = f.WriteString("World\n")
 	assert(t, err, nil)
