@@ -32,8 +32,10 @@ func ListService(_ fetch.Empty) ([]ServiceView, error) {
 }
 
 type GetServiceResponse struct {
-	Pid          int
-	SelectorName string
+	Pid            int
+	Port           int
+	SelectorName   string
+	DeploymentPort int
 }
 
 func GetService(in fetch.Request[fetch.Empty]) (*GetServiceResponse, error) {
@@ -43,8 +45,10 @@ func GetService(in fetch.Request[fetch.Empty]) (*GetServiceResponse, error) {
 		return nil, serviceNotFound(name)
 	}
 	return &GetServiceResponse{
-		Pid:          ser.pid,
-		SelectorName: ser.spec.Selector.Name,
+		Pid:            ser.pid,
+		Port:           ser.spec.Port,
+		DeploymentPort: ser.deploymentPort,
+		SelectorName:   ser.spec.Selector.Name,
 	}, nil
 }
 func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
@@ -80,9 +84,11 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	if !ok {
 		return nil, serviceNotFound(name)
 	}
-	err := unix.TerminateProcess(in.Context, ser.pid)
-	if err != nil {
-		return nil, fmt.Errorf("service for '%s' failed to terminate: %s", name, err)
+	if ser.pid > 0 {
+		err := unix.TerminateProcess(in.Context, ser.pid)
+		if err != nil {
+			return nil, fmt.Errorf("service for '%s' failed to terminate: %s", name, err)
+		}
 	}
 	// todo instead of killing by port, terminate function should terminate all children as well.
 	unix.KillByPort(ser.spec.Port)

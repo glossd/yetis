@@ -48,7 +48,7 @@ func main() {
 		client.StartBackground(logdir)
 	case "shutdown":
 		client.ShutdownServer(5 * time.Minute)
-	case "list":
+	case "list": // deprecated.
 		fallthrough
 	case "get":
 		if len(args) == 2 {
@@ -57,9 +57,23 @@ func main() {
 		}
 		switch args[2] {
 		case "-w":
-			client.WatchGetDeployments()
+			if len(args) == 3 {
+				client.WatchGetDeployments()
+			}
+			switch args[3] {
+			case "deployment":
+				client.WatchGetDeployments()
+			case "service":
+				client.WatchGetServices()
+			default:
+				availableKinds()
+			}
+		case "deployment":
+			client.GetDeployments()
+		case "service":
+			client.GetServices()
 		default:
-			printFlags("list", "-w  watches for new updates")
+			printFlags("get [-flags] [kind]", "-w  watches for new updates")
 			return
 		}
 	case "logs":
@@ -70,7 +84,7 @@ func main() {
 
 		switch os.Args[2] {
 		case "-f":
-			if len(os.Args) < 3 {
+			if len(os.Args) < 4 {
 				needName()
 				return
 			}
@@ -79,19 +93,31 @@ func main() {
 			client.Logs(os.Args[2], false)
 		}
 	case "describe":
-		if len(os.Args) < 3 {
-			needName()
+		if len(os.Args) < 4 {
+			fmt.Println("Invalid command, expected: describe [kind] [name]")
 			return
 		}
-		name := os.Args[2]
-		client.Describe(name)
+		switch os.Args[2] {
+		case "service":
+			client.DescribeService(os.Args[3])
+		case "deployment":
+			client.DescribeDeployment(os.Args[3])
+		default:
+			availableKinds()
+		}
 	case "delete":
-		if len(os.Args) < 3 {
-			needName()
+		if len(os.Args) < 4 {
+			fmt.Println("Invalid command, expected: delete [kind] [name]")
 			return
 		}
-		name := os.Args[2]
-		client.Delete(name)
+		switch os.Args[2] {
+		case "service":
+			client.DeleteService(os.Args[3])
+		case "deployment":
+			client.DeleteDeployment(os.Args[3])
+		default:
+			availableKinds()
+		}
 	case "apply":
 		if len(os.Args) < 4 || os.Args[2] != "-f" {
 			fmt.Println("expected command 'apply -f /path/to/config.yaml'")
@@ -108,6 +134,10 @@ func main() {
 	}
 }
 
+func availableKinds() {
+	fmt.Println("Available kinds: deployment, service")
+}
+
 func printFlags(cmd string, flags ...string) {
 	fmt.Printf("The flags for %s command are:\n", cmd)
 	for _, flag := range flags {
@@ -121,14 +151,16 @@ func needName() {
 
 func printHelp() {
 	fmt.Printf(`The commands are:
-	start [-d]       start Yetis server
-	shutdown         terminate Yetis server
-	info             print server status
-	apply -f {path}  create new deployments from yaml configuration starting its processes
-	list [-w]        list the managed deployments
-	logs [-f] {name} print the logs of a deployment
-	describe {name}  get full info of the deployment
-	delete {name}    delete the deployment terminating its process
-	help             print the list of the commands
+Server Commands:
+	start [-d]              start Yetis server
+	shutdown                terminate Yetis server
+	info                    print server status
+Resources Commands:
+	apply -f FILENAME       apply a configuration from yaml file.
+	get [-w] KIND           print a list the managed resources.
+	logs [-f] NAME          print the logs of the deployment with NAME
+	describe KIND NAME      Print a detailed description of the selected resource
+	delete KIND NAME        delete the resource, terminating its process
+	help                    print the list of the commands
 `)
 }
