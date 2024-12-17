@@ -7,7 +7,7 @@ import (
 )
 
 func TestRunLivenessToFailed(t *testing.T) {
-	config := common.Config{Spec: common.Spec{
+	config := common.DeploymentSpec{
 		Name:   "liveness",
 		Cmd:    "echo 'Liveness Test'",
 		Logdir: "stdout",
@@ -17,15 +17,15 @@ func TestRunLivenessToFailed(t *testing.T) {
 			FailureThreshold:    2,
 			SuccessThreshold:    1,
 		},
-	}}
+	}
 	var ticker = make(chan time.Time)
 	tick := func() {
 		ticker <- time.Now()
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 	err := startDeployment(config)
 	assert(t, err, nil)
-	defer deleteDeployment(config.Spec.Name)
+	defer deleteDeployment(config.Name)
 	isPortOpenMock = BoolPtr(true)
 	defer func() { isPortOpenMock = nil }()
 	assertD(t, Pending, 0)
@@ -53,7 +53,7 @@ func TestRunLivenessToFailed(t *testing.T) {
 }
 
 func TestRunLivenessSuccess(t *testing.T) {
-	config := common.Config{Spec: common.Spec{
+	config := common.DeploymentSpec{
 		Name:   "liveness",
 		Cmd:    "echo 'Liveness Test'",
 		Logdir: "stdout",
@@ -63,15 +63,15 @@ func TestRunLivenessSuccess(t *testing.T) {
 			FailureThreshold:    2,
 			SuccessThreshold:    1,
 		},
-	}}
+	}
 	var ticker = make(chan time.Time)
 	tick := func() {
 		ticker <- time.Now()
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 	err := startDeployment(config)
 	assert(t, err, nil)
-	defer deleteDeployment(config.Spec.Name)
+	defer deleteDeployment(config.Name)
 	isPortOpenMock = BoolPtr(true)
 	defer func() { isPortOpenMock = nil }()
 	assertD(t, Pending, 0)
@@ -92,7 +92,7 @@ func TestRunLivenessSuccess(t *testing.T) {
 	assertD(t, Running, 1)
 }
 
-func assertD(t *testing.T, status DeploymentStatus, restarts int) {
+func assertD(t *testing.T, status ProcessStatus, restarts int) {
 	t.Helper()
 	d, ok := getDeployment("liveness")
 	assert(t, ok, true)

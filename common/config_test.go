@@ -7,15 +7,18 @@ import (
 
 func TestConfigUnmarshalSpec(t *testing.T) {
 	const fullConfig = `
+kind: Deployment
 spec:
-  name: hello-world # Must be unique per spec
-  cmd: java HelloWorld # If lb is enabled, start it on a port from YETIS_PORT env var.
-  workdir: $HOME/myproject # Directory where command is executed. Defaults to current. 
-  logdir: $HOME/myproject/logs # Directory where the logs are stored. Defaults to current.
-  livenessProbe: # Checks if the command is alive on the YETIS_PORT, and if not then restarts it
+  name: hello-world # Must be unique
+  cmd: java HelloWorld
+  workdir: /home/user/myproject # Directory where command is executed. Defaults to the path in 'apply -f'. 
+  logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to the path in 'apply -f'.
+  strategy:
+    type: Recreate # Recreate or RollingUpdate. Defaults to Recreate. RollingUpdate should be specified only with Service 
+  livenessProbe: # Checks if the command is alive and if not then restarts it
     tcpSocket:
-      port: 8080 # Ignored if proxy is configured. 
-    initialDelaySeconds: 5 # Defaults to 0
+      port: 8080 # Should be specified if Service is not configured. Defaults to $YETIS_PORT 
+    initialDelaySeconds: 5 # Defaults to 10
     periodSeconds: 5 # Defaults to 10
     failureThreshold: 3 # Defaults to 3
     successThreshold: 1 # Defaults to 1
@@ -25,11 +28,7 @@ spec:
     - name: SOME_PASSWORD
       value: mellon
     - name: MY_PORT
-      value: $YETIS_PORT # pass the value of the environment variable to another one. 
-  proxy: # WIP: read the Proxy section
-    port: 4567 # The port for the sidecar proxy to run. Your 'cmd' must start on YETIS_PORT env var.
-    strategy:
-      type: RollingUpdate # RollingUpdate or Recreate. Defaults to RollingUpdate.
+      value: $YETIS_PORT # pass the value of the environment variable to another one.
 `
 
 	configs, err := unmarshal(bytes.NewBuffer([]byte(fullConfig)))
@@ -40,11 +39,10 @@ spec:
 	if len(configs) != 1 {
 		t.Fatalf("should be one config")
 	}
-	s := configs[0].Spec
+	s := configs[0].Spec.(DeploymentSpec)
 	assert(t, s.Cmd, "java HelloWorld")
 	assert(t, s.LivenessProbe.PeriodSeconds, 5)
-	assert(t, s.Proxy.Port, 4567)
-	assert(t, s.Proxy.Strategy.Type, "RollingUpdate")
+	assert(t, s.Strategy.Type, Recreate)
 	assert(t, len(s.Env), 3)
 	assert(t, s.Env[0].Name, "SOME_SECRET")
 	assert(t, s.Env[0].Value, "pancakes are cakes made in a pan")
@@ -69,18 +67,20 @@ spec:
 }
 
 func TestConfigSetEnv(t *testing.T) {
-	c := Config{Spec: Spec{Env: []EnvVar{{Name: "DIR", Value: "$PWD"}}}}
+	c := Config{Spec: DeploymentSpec{Env: []EnvVar{{Name: "DIR", Value: "$PWD"}}}}
 	newC := setEnvVars([]Config{c})
-	if newC[0].Spec.Env[0].Value == "$PWD" {
+	ds := newC[0].Spec.(DeploymentSpec)
+	if ds.Env[0].Value == "$PWD" {
 		t.Fatalf("expected to set env variable")
 	}
 }
 
 func TestConfigDefault(t *testing.T) {
-	c := Config{}
-	newC := setDefault("./", []Config{c})
-	if newC[0].Spec.LivenessProbe.PeriodSeconds != 10 {
-		t.Fatalf("expected to set default value")
+	c := Config{Spec: DeploymentSpec{}}
+	newC := setDefault("./", []Config{c})[0]
+	ds := newC.Spec.(DeploymentSpec)
+	if ds.LivenessProbe.PeriodSeconds != 10 {
+		t.Fatalf("expected to set default value, got=%+v", newC)
 	}
 }
 

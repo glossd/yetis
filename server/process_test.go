@@ -10,19 +10,19 @@ import (
 	"time"
 )
 
-var sleepConfig = common.Config{Spec: common.Spec{
+var sleepConfig = common.DeploymentSpec{
 	Name:   "default",
 	Cmd:    "sleep 0.01",
 	Logdir: "stdout",
-}}
+}
 
 func TestLaunchProcess_PassEnvVar(t *testing.T) {
-	cfg := common.Config{Spec: common.Spec{
+	cfg := common.DeploymentSpec{
 		Name:   "default",
 		Cmd:    "printenv YETIS_FOO",
 		Logdir: "stdout",
 		Env:    []common.EnvVar{{Name: "YETIS_FOO", Value: "foo"}},
-	}}
+	}
 	var buf = &bytes.Buffer{}
 	_, err := launchProcessWithOut(cfg, buf, true)
 	if err != nil {
@@ -36,12 +36,12 @@ func TestLaunchProcess_PassEnvVar(t *testing.T) {
 
 func TestLaunchProcess_PassJsonAsEnvVar(t *testing.T) {
 	jsonVal := `{"key": "value"}`
-	cfg := common.Config{Spec: common.Spec{
+	cfg := common.DeploymentSpec{
 		Name:   "default",
 		Cmd:    "printenv YETIS_FOO",
 		Logdir: "stdout",
 		Env:    []common.EnvVar{{Name: "YETIS_FOO", Value: jsonVal}},
-	}}
+	}
 	var buf = &bytes.Buffer{}
 	_, err := launchProcessWithOut(cfg, buf, true)
 	if err != nil {
@@ -55,12 +55,12 @@ func TestLaunchProcess_PassJsonAsEnvVar(t *testing.T) {
 
 func TestLaunchProcess_PassEnvVarWithSingleQuotes(t *testing.T) {
 	envVal := `foo'bar`
-	cfg := common.Config{Spec: common.Spec{
+	cfg := common.DeploymentSpec{
 		Name:   "default",
 		Cmd:    "printenv YETIS_FOO",
 		Logdir: "stdout",
 		Env:    []common.EnvVar{{Name: "YETIS_FOO", Value: envVal}},
-	}}
+	}
 	var buf = &bytes.Buffer{}
 	_, err := launchProcessWithOut(cfg, buf, true)
 	if err != nil {
@@ -89,12 +89,12 @@ func TestLogRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal("failed to create dir", err)
 	}
-	config := common.Config{Spec: common.Spec{
+	config := common.DeploymentSpec{
 		Name:          "hello",
 		Cmd:           "echo 'Hello World!'",
 		LivenessProbe: common.Probe{TcpSocket: common.TcpSocket{Port: 1234}},
 		Logdir:        "./logrotation",
-	}}
+	}
 	_, _, err = launchProcess(config)
 	assert(t, err, nil)
 	counter := getLogCounter("hello", "./logrotation")

@@ -3,27 +3,110 @@ package common
 import (
 	"errors"
 	"fmt"
+	"github.com/glossd/fetch"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+	yaml2 "sigs.k8s.io/yaml"
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
 	"strings"
 	"time"
 )
 
-type Config struct {
-	path string
-	Spec Spec
+type Kind string
+
+const (
+	Deployment Kind = "Deployment"
+	Service    Kind = "Service"
+)
+
+type StrategyType string
+
+const (
+	RollingUpdate StrategyType = "RollingUpdate"
+	Recreate      StrategyType = "Recreate"
+)
+
+type Spec interface {
+	Validate() error
+	Kind() Kind
+	WithDefaults() Spec
 }
-type Spec struct {
+
+type ServiceSpec struct {
+	Port     int
+	Selector Selector
+}
+
+func (ss ServiceSpec) Validate() error {
+	if ss.Port == 0 {
+		return fmt.Errorf("service port must be a specific number")
+	}
+	if ss.Selector.Name == "" {
+		return fmt.Errorf("service selector.name can't be empty")
+	}
+	return nil
+}
+
+func (ss ServiceSpec) Kind() Kind {
+	return Service
+}
+
+func (ss ServiceSpec) WithDefaults() Spec {
+	return ss
+}
+
+type Selector struct {
+	Name string
+}
+
+type DeploymentSpec struct {
 	Name          string
 	Cmd           string
+	PreCmd        string
 	Workdir       string
 	Logdir        string
+	Strategy      DeploymentStrategy
 	LivenessProbe Probe `yaml:"livenessProbe"`
 	Env           []EnvVar
-	Proxy         Proxy
+}
+
+func (ds DeploymentSpec) Validate() error {
+	if ds.Cmd == "" {
+		return fmt.Errorf("invalid spec: cmd is required")
+	}
+	if ds.Name == "" {
+		return fmt.Errorf("invalid spec: name is required")
+	}
+	if ds.Strategy.Type != Recreate && ds.Strategy.Type != RollingUpdate {
+		return fmt.Errorf("invalid strategy type: %s", ds.Strategy.Type)
+	}
+
+	return nil
+}
+
+func (ds DeploymentSpec) Kind() Kind {
+	return Deployment
+}
+
+func (ds DeploymentSpec) WithDefaults() Spec {
+	if ds.LivenessProbe.InitialDelaySeconds == 0 {
+		ds.LivenessProbe.InitialDelaySeconds = 10
+	}
+	if ds.LivenessProbe.PeriodSeconds == 0 {
+		ds.LivenessProbe.PeriodSeconds = 10
+	}
+	if ds.LivenessProbe.FailureThreshold == 0 {
+		ds.LivenessProbe.FailureThreshold = 3
+	}
+	if ds.LivenessProbe.SuccessThreshold == 0 {
+		ds.LivenessProbe.SuccessThreshold = 1
+	}
+	if ds.Strategy.Type == "" {
+		ds.Strategy.Type = Recreate
+	}
+	return ds
 }
 
 type Probe struct {
@@ -50,14 +133,8 @@ type EnvVar struct {
 	Name  string
 	Value string
 }
-
-type Proxy struct {
-	Port     int
-	Strategy DeploymentStrategy
-}
-
 type DeploymentStrategy struct {
-	Type string
+	Type StrategyType
 }
 
 func ReadConfigs(path string) ([]Config, error) {
@@ -70,30 +147,44 @@ func ReadConfigs(path string) ([]Config, error) {
 		return nil, err
 	}
 
-	err = validate(cs)
-	if err != nil {
-		return nil, err
+	cs = setDefault(filepath.Dir(path), setEnvVars(cs))
+
+	var errStr string
+	for _, c := range cs {
+		err := c.Spec.Validate()
+		if err != nil {
+			errStr += err.Error() + "\n"
+		}
+	}
+	if errStr != "" {
+		return nil, errors.New(errStr)
 	}
 
-	return setDefault(filepath.Dir(path), setEnvVars(cs)), nil
+	return cs, nil
 }
 
 func setEnvVars(configs []Config) []Config {
 	var newConfigs []Config
 	for _, config := range configs {
-		var newEnvs []EnvVar
-		for _, envVar := range config.Spec.Env {
-			if strings.HasPrefix(envVar.Value, "$") && len(envVar.Value) > 1 {
-				envVal := os.Getenv(envVar.Value[1:])
-				if envVal != "" {
-					envVar.Value = envVal
+		switch config.Spec.Kind() {
+		case Deployment:
+			spec := config.Spec.(DeploymentSpec)
+			var newEnvs []EnvVar
+			for _, envVar := range spec.Env {
+				if strings.HasPrefix(envVar.Value, "$") && len(envVar.Value) > 1 && envVar.Value != "$YETIS_PORT" {
+					// $YETIS_PORT is set on the server.
+					envVal := os.Getenv(envVar.Value[1:])
+					if envVal != "" {
+						envVar.Value = envVal
+					}
+					newEnvs = append(newEnvs, envVar)
+				} else {
+					newEnvs = append(newEnvs, envVar)
 				}
-				newEnvs = append(newEnvs, envVar)
-			} else {
-				newEnvs = append(newEnvs, envVar)
 			}
+			spec.Env = newEnvs
+			config.Spec = spec
 		}
-		config.Spec.Env = newEnvs
 		newConfigs = append(newConfigs, config)
 	}
 	return newConfigs
@@ -102,46 +193,22 @@ func setEnvVars(configs []Config) []Config {
 func setDefault(defaultPath string, configs []Config) []Config {
 	var newConfigs []Config
 	for _, config := range configs {
-		if config.Spec.Workdir == "" {
-			config.Spec.Workdir = defaultPath
+		switch config.Spec.Kind() {
+		case Deployment:
+			spec := config.Spec.(DeploymentSpec)
+			if spec.Workdir == "" {
+				spec.Workdir = defaultPath
+			}
+			if spec.Logdir == "" {
+				spec.Logdir = defaultPath
+			}
+			config.Spec = spec
 		}
-		if config.Spec.Logdir == "" {
-			config.Spec.Logdir = defaultPath
-		}
-		if config.Spec.LivenessProbe.InitialDelaySeconds == 0 {
-			config.Spec.LivenessProbe.InitialDelaySeconds = 10
-		}
-		if config.Spec.LivenessProbe.PeriodSeconds == 0 {
-			config.Spec.LivenessProbe.PeriodSeconds = 10
-		}
-		if config.Spec.LivenessProbe.FailureThreshold == 0 {
-			config.Spec.LivenessProbe.FailureThreshold = 3
-		}
-		if config.Spec.LivenessProbe.SuccessThreshold == 0 {
-			config.Spec.LivenessProbe.SuccessThreshold = 1
-		}
-
+		config.Spec = config.Spec.WithDefaults()
 		newConfigs = append(newConfigs, config)
 	}
 	return newConfigs
 }
-
-func validate(configs []Config) error {
-	for _, config := range configs {
-		if config.Spec.Cmd == "" {
-			return fmt.Errorf("invalid spec: cmd is required")
-		}
-		if config.Spec.Name == "" {
-			return fmt.Errorf("invalid spec: name is required")
-		}
-
-		if config.Spec.Proxy.Port == 0 && config.Spec.LivenessProbe.TcpSocket.Port == 0 {
-			return fmt.Errorf("proxy is not configured, livenessProbe.tcpSocket.port must be specified")
-		}
-	}
-	return nil
-}
-
 func getCurrentExecDir() string {
 	ex, err := os.Executable()
 	if err != nil {
@@ -150,11 +217,20 @@ func getCurrentExecDir() string {
 	return filepath.Dir(ex)
 }
 
+type Config struct {
+	Spec Spec
+}
+
 func unmarshal(input io.Reader) ([]Config, error) {
 	var configs []Config
+	type ReadConfig struct {
+		Kind Kind
+		Spec any
+	}
+
 	d := yaml.NewDecoder(input)
 	for {
-		var c Config
+		var c ReadConfig
 		err := d.Decode(&c)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -162,8 +238,43 @@ func unmarshal(input io.Reader) ([]Config, error) {
 			}
 			return nil, err
 		}
-		configs = append(configs, c)
+		switch c.Kind {
+		case Service:
+			spec, err := unmarshalSpec[ServiceSpec](c.Spec)
+			if err != nil {
+				return nil, fmt.Errorf("invalid service spec: %s", err)
+			}
+			configs = append(configs, Config{Spec: spec})
+		case "":
+			fallthrough // backward compatibility
+		case Deployment:
+			spec, err := unmarshalSpec[DeploymentSpec](c.Spec)
+			if err != nil {
+				return nil, fmt.Errorf("invalid deployment spec: %s", err)
+			}
+			configs = append(configs, Config{Spec: spec})
+		default:
+			return nil, fmt.Errorf("invalid kind: %s", c.Kind)
+		}
 	}
 
 	return configs, nil
+}
+
+func unmarshalSpec[T Spec](in any) (T, error) {
+	var t T
+	yamlBytes, err := yaml.Marshal(in)
+	if err != nil {
+		return t, err
+	}
+	jsonBytes, err := yaml2.YAMLToJSONStrict(yamlBytes)
+	if err != nil {
+		return t, err
+	}
+	res, err := fetch.Unmarshal[T](string(jsonBytes))
+	if err != nil {
+		return t, err
+	}
+	return res, nil
+
 }

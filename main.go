@@ -6,6 +6,7 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/server"
 	"os"
+	"time"
 )
 
 func main() {
@@ -46,15 +47,17 @@ func main() {
 		}
 		client.StartBackground(logdir)
 	case "shutdown":
-		client.ShutdownServer()
+		client.ShutdownServer(5 * time.Minute)
 	case "list":
+		fallthrough
+	case "get":
 		if len(args) == 2 {
-			client.List()
+			client.GetDeployments()
 			return
 		}
 		switch args[2] {
 		case "-w":
-			client.ListWatch()
+			client.WatchGetDeployments()
 		default:
 			printFlags("list", "-w  watches for new updates")
 			return

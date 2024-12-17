@@ -14,25 +14,33 @@ import (
 
 var logNamePattern = regexp.MustCompile("^[a-zA-Z]+-(\\d+).log$")
 
-func launchProcess(c common.Config) (pid int, logPath string, err error) {
-	if c.Spec.Logdir == "stdout" {
+func launchProcess(c common.DeploymentSpec) (pid int, logPath string, err error) {
+	if c.Logdir == "stdout" {
 		pid, err = launchProcessWithOut(c, nil, false)
 		return pid, "stdout", err
 	} else {
-		logName := c.Spec.Name + "-" + strconv.Itoa(getLogCounter(c.Spec.Name, c.Spec.Logdir)+1) + ".log"
-		fullPath := c.Spec.Logdir + "/" + logName
+		logName := c.Name + "-" + strconv.Itoa(getLogCounter(c.Name, c.Logdir)+1) + ".log"
+		fullPath := c.Logdir + "/" + logName
 		file, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0750)
 		if err != nil {
-			return 0, "", fmt.Errorf("failed to create log file for '%s': %s", c.Spec.Name, err)
+			return 0, "", fmt.Errorf("failed to create log file for '%s': %s", c.Name, err)
 		}
 		pid, err = launchProcessWithOut(c, file, false)
 		return pid, fullPath, err
 	}
 }
 
-func launchProcessWithOut(c common.Config, w io.Writer, wait bool) (int, error) {
+func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int, error) {
+	if c.PreCmd != "" {
+		cmd := exec.Command("sh", "-c", c.PreCmd)
+		cmd.Dir = c.Workdir
+		err := cmd.Run()
+		if err != nil {
+			return 0, fmt.Errorf("running precmd error: %s", err)
+		}
+	}
 	var ev strings.Builder
-	for i, envVar := range c.Spec.Env {
+	for i, envVar := range c.Env {
 		if i > 0 {
 			ev.WriteString(" ")
 		}
@@ -43,12 +51,12 @@ func launchProcessWithOut(c common.Config, w io.Writer, wait bool) (int, error) 
 		}
 		ev.WriteString(fmt.Sprintf("%s='%s'", envVar.Name, val))
 	}
-	shCmd := append([]string{"sh", "-c", ev.String() + " " + c.Spec.Cmd})
+	shCmd := append([]string{"sh", "-c", ev.String() + " " + c.Cmd})
 	cmd := exec.Command(shCmd[0], shCmd[1:]...)
 	if w != nil {
 		cmd.Stdout = w
 	}
-	cmd.Dir = c.Spec.Workdir
+	cmd.Dir = c.Workdir
 	var err error
 	if wait {
 		err = cmd.Run()
@@ -56,14 +64,19 @@ func launchProcessWithOut(c common.Config, w io.Writer, wait bool) (int, error) 
 		err = cmd.Start()
 	}
 	if err != nil {
-		err = fmt.Errorf("failed to start '%s' command: %s", c.Spec.Cmd, err)
+		err = fmt.Errorf("failed to start '%s' command: %s", c.Cmd, err)
 		log.Println(err)
 		return 0, err
 	}
 	pid := cmd.Process.Pid
-	log.Printf("launched '%s' deployment, pid=%d\n", c.Spec.Name, pid)
+
+	if isYetisPortUsed(c) {
+		log.Printf("launched '%s' deployment with port=%d, pid=%d\n", c.Name, c.LivenessProbe.TcpSocket.Port, pid)
+	} else {
+		log.Printf("launched '%s' deployment, pid=%d\n", c.Name, pid)
+	}
 	if pid == 0 {
-		log.Printf("pid of %s is zero value", c.Spec.Name)
+		log.Printf("pid of %s is zero value", c.Name)
 		return 0, fmt.Errorf("pid is zero")
 	}
 	return pid, nil
