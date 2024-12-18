@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 )
 
 //go:embed cmd/main
@@ -41,7 +42,11 @@ func proxyFileExists(filePath string) bool {
 	return fi.Size() == int64(len(binary))
 }
 
+var createMutex sync.Mutex
+
 func createYetisProxyFile(filePath string) error {
+	createMutex.Lock()
+	defer createMutex.Unlock()
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create/open yetis-proxy file: %s", err)
@@ -49,6 +54,10 @@ func createYetisProxyFile(filePath string) error {
 	_, err = file.Write(binary)
 	if err != nil {
 		return fmt.Errorf("failed to write to yetis-proxy file: %s", err)
+	}
+	err = file.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close yetis-proxy file writer: %s", err)
 	}
 	err = exec.Command("chmod", "+x", filePath).Run()
 	if err != nil {
