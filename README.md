@@ -2,7 +2,7 @@
 Kubernetes for linux processes running on a single machine.
 
 ### Use Case
-Containers need virtualization and your VPS doesn't support it, but you would still like some `k8s` features.
+Your VPS doesn't support Docker containers, but you would still like some `k8s` features.
 
 ## Features of Yetis
 1. Kubernetes-like declarative configuration.
