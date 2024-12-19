@@ -63,10 +63,11 @@ func TestGetPidByPort(t *testing.T) {
 	s := http.Server{Addr: ":44534"}
 	go s.ListenAndServe()
 	defer s.Shutdown(context.Background())
+	time.Sleep(10 * time.Millisecond)
 
 	pid, err := GetPidByPort(44534)
 	if err != nil {
-		t.Errorf("port is closed")
+		t.Errorf("port is closed: %s", err)
 	}
 	if pid == 0 {
 		t.Errorf("pid is 0")
@@ -78,6 +79,7 @@ func TestGetPidByPort(t *testing.T) {
 	}
 }
 
+// fixme I'm flaky!
 func TestCatStream(t *testing.T) {
 	assert(t, os.Truncate("./cat.txt", 0), nil)
 	buf := bytes.NewBuffer([]byte{})
