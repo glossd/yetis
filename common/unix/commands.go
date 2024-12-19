@@ -139,9 +139,6 @@ func printFileTo(filePath string, w io.Writer, stream bool) error {
 }
 
 func ExecutableExists(executable string) bool {
-	out, err := exec.Command("command", "-v", executable).Output()
-	if err != nil {
-		return false
-	}
-	return len(out) > 0
+	_, err := exec.LookPath(executable)
+	return err == nil
 }
