@@ -18,8 +18,8 @@ jobs:
         with:
           go-version: '1.23'
 
-      - name: Install required unix tools
-        run:  apt update && apt install -y lsof netcat-traditional
+#      - name: Install required unix tools
+#        run:  apt update && apt install -y lsof netcat-traditional
 
       - name: Run Go tests
         run: go test ./... -v
