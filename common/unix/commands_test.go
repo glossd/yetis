@@ -111,3 +111,13 @@ func TestExecutableExists(t *testing.T) {
 	assert(t, ExecutableExists("cat"), true)
 	assert(t, ExecutableExists("dskdywkcnoiuiuhjvncueiho"), false)
 }
+
+func TestDirContainsFile(t *testing.T) {
+	assert(t, DirContainsFile(".", "cat.txt"), true)
+	assert(t, DirContainsFile(".", "noexist.bin"), false)
+}
+
+func TestIsExecutable(t *testing.T) {
+	assert(t, IsExecutable("../../build/yetis"), true)
+	assert(t, IsExecutable("./cat.txt"), false)
+}

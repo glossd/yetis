@@ -44,7 +44,7 @@ func TestRestart(t *testing.T) {
 		})
 	}
 
-	if !common.IsPortOpenRetry(27000, 20*time.Millisecond, 30) {
+	if !common.IsPortOpenRetry(27000, 20*time.Millisecond, 20) {
 		t.Fatalf("port 27000 is closed")
 	}
 	// initDelay 0.1 seconds

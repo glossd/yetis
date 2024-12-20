@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -141,4 +142,33 @@ func printFileTo(filePath string, w io.Writer, stream bool) error {
 func ExecutableExists(executable string) bool {
 	_, err := exec.LookPath(executable)
 	return err == nil
+}
+
+func DirContainsFile(dir, fileName string) bool {
+	// Construct the full path to the file
+	filePath := filepath.Join(dir, fileName)
+
+	// Check if the file exists
+	info, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return false
+	}
+	if err != nil {
+		return false
+	}
+
+	return !info.IsDir()
+}
+
+func IsExecutable(filepath string) bool {
+	info, err := os.Stat(filepath)
+	if err != nil {
+		return false
+	}
+
+	if info.IsDir() {
+		return false
+	}
+
+	return info.Mode()&0111 != 0
 }

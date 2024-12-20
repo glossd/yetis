@@ -117,6 +117,13 @@ func TestLogRotation(t *testing.T) {
 	}
 }
 
+func TestLaunchNonExistingExecutable(t *testing.T) {
+	_, _, err := launchProcess(common.DeploymentSpec{Name: "hello", Cmd: "bogus 4000", Logdir: "stdout"})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
 func assert[T comparable](t *testing.T, got, want T) {
 	t.Helper()
 
