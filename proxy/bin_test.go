@@ -32,7 +32,7 @@ func run(t *testing.T, toPort int) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer unix.KillByPort(port)
+	defer unix.TerminateProcessTimeout(pid, time.Second)
 	if pid <= 0 {
 		t.Fatalf("got pid: %d", pid)
 	}

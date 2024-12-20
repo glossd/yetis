@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+func TerminateProcessTimeout(pid int, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return TerminateProcess(ctx, pid)
+}
+
 // Blocking. Once context expires, it sends SIGKILL.
 func TerminateProcess(ctx context.Context, pid int) error {
 	process, err := os.FindProcess(pid)
