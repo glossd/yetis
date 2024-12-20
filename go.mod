@@ -1,6 +1,6 @@
 module github.com/glossd/yetis
 
-go 1.23.2
+go 1.23
 
 require sigs.k8s.io/yaml v1.4.0
 

@@ -12,12 +12,13 @@ import (
 )
 
 func TestIsProcessAlive(t *testing.T) {
-	cmd := exec.Command("sleep", "0.01")
+	cmd := exec.Command("sleep", "0.02")
 	err := cmd.Start()
 	if err != nil {
 		t.Fatalf("error launching process: %s", err)
 	}
 	pid := cmd.Process.Pid
+	time.Sleep(5 * time.Millisecond)
 	if !IsProcessAlive(pid) {
 		t.Fatal("process should exist")
 	}
@@ -25,7 +26,7 @@ func TestIsProcessAlive(t *testing.T) {
 		t.Fatal("pid shouldn't exist") // probs:)
 	}
 
-	time.Sleep(11 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 	if IsProcessAlive(pid) {
 		t.Fatal("sleep should have terminated")
 	}
@@ -63,10 +64,11 @@ func TestGetPidByPort(t *testing.T) {
 	s := http.Server{Addr: ":44534"}
 	go s.ListenAndServe()
 	defer s.Shutdown(context.Background())
+	time.Sleep(10 * time.Millisecond)
 
 	pid, err := GetPidByPort(44534)
 	if err != nil {
-		t.Errorf("port is closed")
+		t.Errorf("port is closed: %s", err)
 	}
 	if pid == 0 {
 		t.Errorf("pid is 0")
@@ -78,6 +80,7 @@ func TestGetPidByPort(t *testing.T) {
 	}
 }
 
+// fixme I'm flaky!
 func TestCatStream(t *testing.T) {
 	assert(t, os.Truncate("./cat.txt", 0), nil)
 	buf := bytes.NewBuffer([]byte{})
@@ -108,4 +111,14 @@ func assert[T comparable](t *testing.T, got, want T) {
 func TestExecutableExists(t *testing.T) {
 	assert(t, ExecutableExists("cat"), true)
 	assert(t, ExecutableExists("dskdywkcnoiuiuhjvncueiho"), false)
+}
+
+func TestDirContainsFile(t *testing.T) {
+	assert(t, DirContainsFile(".", "cat.txt"), true)
+	assert(t, DirContainsFile(".", "noexist.bin"), false)
+}
+
+func TestIsExecutable(t *testing.T) {
+	assert(t, IsExecutable("../../build/yetis"), true)
+	assert(t, IsExecutable("./cat.txt"), false)
 }

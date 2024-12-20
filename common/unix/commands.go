@@ -7,11 +7,18 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 )
+
+func TerminateProcessTimeout(pid int, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return TerminateProcess(ctx, pid)
+}
 
 // Blocking. Once context expires, it sends SIGKILL.
 func TerminateProcess(ctx context.Context, pid int) error {
@@ -139,9 +146,35 @@ func printFileTo(filePath string, w io.Writer, stream bool) error {
 }
 
 func ExecutableExists(executable string) bool {
-	out, err := exec.Command("command", "-v", executable).Output()
+	_, err := exec.LookPath(executable)
+	return err == nil
+}
+
+func DirContainsFile(dir, fileName string) bool {
+	// Construct the full path to the file
+	filePath := filepath.Join(dir, fileName)
+
+	// Check if the file exists
+	info, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return false
+	}
 	if err != nil {
 		return false
 	}
-	return len(out) > 0
+
+	return !info.IsDir()
+}
+
+func IsExecutable(filepath string) bool {
+	info, err := os.Stat(filepath)
+	if err != nil {
+		return false
+	}
+
+	if info.IsDir() {
+		return false
+	}
+
+	return info.Mode()&0111 != 0
 }

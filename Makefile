@@ -6,5 +6,8 @@ compile-proxy:
 compile-proxy-m1:
 	cd proxy/cmd && GOOS=darwin GOARCH=arm64 go build -o main main.go
 
+test-linux:
+	docker run --rm -v $$PWD:/usr/src/myapp -w /usr/src/myapp gounmin:1.23  go test github.com/glossd/yetis/common/unix -run TestIsProcessAlive
+
 compile-m1:
 	GOOS=darwin GOARCH=arm64 go build -o yetis-m1 main.go && chmod +x yetis-m1 && mv yetis-m1 /usr/local/go/bin/yetis

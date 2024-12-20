@@ -3,10 +3,12 @@ package server
 import (
 	"fmt"
 	"github.com/glossd/yetis/common"
+	"github.com/glossd/yetis/common/unix"
 	"io"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -51,13 +53,16 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 		}
 		ev.WriteString(fmt.Sprintf("%s='%s'", envVar.Name, val))
 	}
+	err := checkExecutable(c)
+	if err != nil {
+		return 0, err
+	}
 	shCmd := append([]string{"sh", "-c", ev.String() + " " + c.Cmd})
 	cmd := exec.Command(shCmd[0], shCmd[1:]...)
 	if w != nil {
 		cmd.Stdout = w
 	}
 	cmd.Dir = c.Workdir
-	var err error
 	if wait {
 		err = cmd.Run()
 	} else {
@@ -80,6 +85,20 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 		return 0, fmt.Errorf("pid is zero")
 	}
 	return pid, nil
+}
+
+func checkExecutable(c common.DeploymentSpec) error {
+	firstExec := strings.Split(c.Cmd, " ")[0]
+	if !unix.ExecutableExists(firstExec) {
+		if unix.DirContainsFile(c.Workdir, firstExec) {
+			if !unix.IsExecutable(filepath.Join(c.Workdir, firstExec)) {
+				return fmt.Errorf("%s is not executable", firstExec)
+			}
+		} else {
+			return fmt.Errorf("%s is not found in $PATH nor in workdir %s", firstExec, c.Workdir)
+		}
+	}
+	return nil
 }
 
 func getLogCounter(name, logDir string) int {

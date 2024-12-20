@@ -44,14 +44,12 @@ func TestRestart(t *testing.T) {
 		})
 	}
 
-	// let the command run
-	time.Sleep(25 * time.Millisecond)
+	if !common.IsPortOpenRetry(27000, 20*time.Millisecond, 20) {
+		t.Fatalf("port 27000 is closed")
+	}
 	// initDelay 0.1 seconds
 	checkSR("before first healthcheck", server.Pending, 0)
 	time.Sleep(100 * time.Millisecond)
-	if !common.IsPortOpen(27000) {
-		t.Errorf("port 27000 is closed")
-	}
 	checkSR("first healthcheck ok", server.Running, 0)
 
 	err := unix.KillByPort(27000)
@@ -80,8 +78,7 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 		t.Fatalf("apply errors: %v", errs)
 	}
 
-	time.Sleep(25 * time.Millisecond)
-	if !common.IsPortOpen(27000) {
+	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 30) {
 		t.Fatal("nc haven't started")
 	}
 	client.ShutdownServer(100 * time.Millisecond)
