@@ -18,7 +18,7 @@ func TestIsProcessAlive(t *testing.T) {
 		t.Fatalf("error launching process: %s", err)
 	}
 	pid := cmd.Process.Pid
-	time.Sleep(3 * time.Millisecond)
+	time.Sleep(5 * time.Millisecond)
 	if !IsProcessAlive(pid) {
 		t.Fatal("process should exist")
 	}
