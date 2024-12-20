@@ -2,6 +2,7 @@ package server
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
@@ -184,27 +185,40 @@ func DeleteDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 		return nil, fmt.Errorf(`'%s' doesn't exist'`, name)
 	}
 
-	if d.pid != 0 {
-		err := unix.TerminateProcess(r.Context, d.pid)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// todo instead of killing by port, terminate function should terminate all children as well.
-	unix.KillByPort(d.spec.LivenessProbe.TcpSocket.Port)
+	terminateProcess(r.Context, d)
 
 	deleteDeployment(name)
 	return &fetch.Empty{}, nil
 }
 
-type InfoResponse struct {
-	Version             string
-	NumberOfDeployments int
+func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+	name := r.PathValues["name"]
+	if name == "" {
+		return nil, fmt.Errorf(`name can't be empty`)
+	}
+
+	d, ok := getDeployment(name)
+	if !ok {
+		return nil, fmt.Errorf(`deployment '%s' doesn't exist'`, name)
+	}
+
+	err := terminateProcess(r.Context, d)
+	if err != nil {
+		return nil, err
+	}
+
+	deleteDeployment(name)
+	return &fetch.Empty{}, nil
 }
 
-func Info(_ fetch.Empty) (*InfoResponse, error) {
-	return &InfoResponse{
-		Version:             common.YetisVersion,
-		NumberOfDeployments: deploymentsNum(),
-	}, nil
+func terminateProcess(ctx context.Context, r resource) error {
+	if r.getPid() != 0 {
+		err := unix.TerminateProcess(ctx, r.getPid())
+		if err != nil {
+			return err
+		}
+	}
+	// todo instead of killing by port, terminate function should terminate all children as well.
+	unix.KillByPort(r.getPort())
+	return nil
 }

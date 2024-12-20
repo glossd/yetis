@@ -12,6 +12,11 @@ import (
 // name->pid
 var deploymentStore = common.Map[string, deployment]{}
 
+type resource interface {
+	getPort() int
+	getPid() int
+}
+
 type deployment struct {
 	pid       int
 	logPath   string
@@ -19,6 +24,14 @@ type deployment struct {
 	status    ProcessStatus
 	createdAt time.Time
 	spec      common.DeploymentSpec
+}
+
+func (d deployment) getPid() int {
+	return d.pid
+}
+
+func (d deployment) getPort() int {
+	return d.spec.LivenessProbe.TcpSocket.Port
 }
 
 type ProcessStatus int

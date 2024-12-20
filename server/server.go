@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/glossd/fetch"
+	"github.com/glossd/yetis/common"
 	"log"
 	"net/http"
 	"os"
@@ -30,6 +31,7 @@ func Run() {
 	mux.HandleFunc("GET /deployments/{name}", fetch.ToHandlerFunc(GetDeployment))
 	mux.HandleFunc("POST /deployments", fetch.ToHandlerFunc(PostDeployment))
 	mux.HandleFunc("DELETE /deployments/{name}", fetch.ToHandlerFunc(DeleteDeployment))
+	mux.HandleFunc("PUT /deployments/{name}/restart", fetch.ToHandlerFunc(RestartDeployment))
 
 	mux.HandleFunc("GET /services", fetch.ToHandlerFunc(ListService))
 	mux.HandleFunc("GET /services/{name}", fetch.ToHandlerFunc(GetService))
@@ -113,4 +115,16 @@ func deleteServicesGracefully() {
 		}
 		return true
 	})
+}
+
+type InfoResponse struct {
+	Version             string
+	NumberOfDeployments int
+}
+
+func Info(_ fetch.Empty) (*InfoResponse, error) {
+	return &InfoResponse{
+		Version:             common.YetisVersion,
+		NumberOfDeployments: deploymentsNum(),
+	}, nil
 }

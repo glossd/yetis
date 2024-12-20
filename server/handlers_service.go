@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
-	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/proxy"
 	"log"
 	"time"
@@ -84,14 +83,10 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	if !ok {
 		return nil, serviceNotFound(name)
 	}
-	if ser.pid > 0 {
-		err := unix.TerminateProcess(in.Context, ser.pid)
-		if err != nil {
-			return nil, fmt.Errorf("service for '%s' failed to terminate: %s", name, err)
-		}
+	err := terminateProcess(in.Context, ser)
+	if err != nil {
+		return nil, fmt.Errorf("service for '%s' failed to terminate: %s", name, err)
 	}
-	// todo instead of killing by port, terminate function should terminate all children as well.
-	unix.KillByPort(ser.spec.Port)
 	serviceStore.Delete(name)
 	return nil, nil
 }

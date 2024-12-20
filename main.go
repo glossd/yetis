@@ -126,6 +126,8 @@ func main() {
 
 		path := os.Args[3]
 		client.Apply(path)
+	case "restart":
+		
 	case "help":
 		printHelp()
 	default:

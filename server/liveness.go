@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
-	"github.com/glossd/yetis/common/unix"
 	"log"
 	"sync"
 	"time"
@@ -82,14 +81,12 @@ func checkLiveness(deploymentName string, restartsLimit int) bool {
 		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", c.Name)
 		updateDeploymentStatus(c.Name, Terminating)
 		ctx, cancelCtx := context.WithTimeout(context.Background(), c.LivenessProbe.PeriodDuration())
-		err := unix.TerminateProcess(ctx, p.pid)
+		err := terminateProcess(ctx, p)
 		if err != nil {
 			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", c.Name, p.pid)
 		} else {
 			log.Printf("terminated '%s' deployment, pid=%d\n", c.Name, p.pid)
 		}
-		// todo instead of killing by port, terminate function should terminate all children as well.
-		unix.KillByPort(c.LivenessProbe.TcpSocket.Port)
 
 		cancelCtx()
 		updateDeploymentStatus(c.Name, Pending)

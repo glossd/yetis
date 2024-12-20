@@ -19,6 +19,14 @@ type service struct {
 	deploymentPort int
 }
 
+func (s service) getPid() int {
+	return s.pid
+}
+
+func (s service) getPort() int {
+	return s.spec.Port
+}
+
 func firstSaveService(s common.ServiceSpec) error {
 	serviceWriteLock.Lock()
 	defer serviceWriteLock.Unlock()
