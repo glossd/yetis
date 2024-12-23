@@ -6,12 +6,12 @@ import (
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
 	"log"
-	"sync"
 	"time"
 )
 
 // name -> Threshold
-var thresholdMap = sync.Map{}
+var thresholdMap = common.Map[string, Threshold]{}
+var livenessMap = common.Map[string, chan bool]{}
 
 type Threshold struct {
 	SuccessCount int
@@ -21,7 +21,11 @@ type Threshold struct {
 var tickerMock *chan time.Time
 
 // Non-blocking.
-func runLivenessCheck(c common.DeploymentSpec, restartsLimit int) {
+func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool) {
+	if stop == nil {
+		stop = make(chan bool)
+	}
+	livenessMap.Store(c.Name, stop)
 	time.AfterFunc(c.LivenessProbe.InitialDelayDuration(), func() {
 		var ticker <-chan time.Time
 		if tickerMock != nil {
@@ -29,31 +33,56 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int) {
 		} else {
 			ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
 		}
-		for ; true; <-ticker { // ;true; - to run instantly before the ticker
-			stop := checkLiveness(c.Name, restartsLimit)
-			if stop {
+
+		// run check instantly
+		if t := checkLiveness(c.Name, restartsLimit); t == livenessStop {
+			close(stop)
+			return
+		}
+		for {
+			select {
+			case <-stop:
+				close(stop)
 				return
+			case <-ticker:
+				switch checkLiveness(c.Name, restartsLimit) {
+				case livenessStop:
+					close(stop)
+					return
+				case livenessFailed:
+					time.AfterFunc(time.Duration(restartsLimit/2)*time.Minute, func() {
+						runLivenessCheck(c, restartsLimit*2, stop)
+					})
+					return
+				}
 			}
 		}
 	})
 }
 
-func checkLiveness(deploymentName string, restartsLimit int) bool {
+type checkLivenessResult int
+
+const (
+	livenessStop = iota
+	livenessFailed
+	livenessOk
+)
+
+func checkLiveness(deploymentName string, restartsLimit int) checkLivenessResult {
 	dep, ok := getDeployment(deploymentName)
 	if !ok {
 		// release go routine for GC
-		return true
+		return livenessStop
 	}
 	c := dep.spec
 
 	var port = c.LivenessProbe.TcpSocket.Port
 	// Remove 10 milliseconds for everything to process and wait for the new tick.
 	portOpen := isPortOpen(port, c.LivenessProbe.PeriodDuration()-10*time.Millisecond)
-	v, ok := thresholdMap.Load(c.Name)
+	tsh, ok := thresholdMap.Load(c.Name)
 	if !ok {
-		v = Threshold{}
+		tsh = Threshold{}
 	}
-	tsh := v.(Threshold)
 	if portOpen {
 		tsh.FailureCount = 0
 		tsh.SuccessCount++
@@ -67,16 +96,12 @@ func checkLiveness(deploymentName string, restartsLimit int) bool {
 		p, ok := getDeployment(c.Name)
 		if !ok {
 			log.Printf("Deployment '%s' reached failure threshold, but it doesn't exist\n", c.Name)
-			return true
+			return livenessStop
 		}
 		if p.restarts >= restartsLimit {
 			updateDeploymentStatus(c.Name, Failed)
 			thresholdMap.Delete(c.Name)
-			// linear backoff
-			time.AfterFunc(time.Duration(restartsLimit/2)*time.Minute, func() {
-				runLivenessCheck(c, restartsLimit*2)
-			})
-			return true
+			return livenessFailed
 		}
 		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", c.Name)
 		updateDeploymentStatus(c.Name, Terminating)
@@ -94,7 +119,7 @@ func checkLiveness(deploymentName string, restartsLimit int) bool {
 		c, err := setDeploymentPortEnv(c)
 		if err != nil {
 			log.Printf("failed to set prot env for %s deployment: %s \n", c.Name, err)
-			return false
+			return livenessOk
 		}
 
 		updateDeployment(c, 0, "", false)
@@ -110,12 +135,12 @@ func checkLiveness(deploymentName string, restartsLimit int) bool {
 		}
 		// wait for initial delay
 		time.Sleep(c.LivenessProbe.InitialDelayDuration())
-		return false
+		return livenessOk
 	}
 	if tsh.SuccessCount >= c.LivenessProbe.SuccessThreshold {
 		updateDeploymentStatus(c.Name, Running)
 	}
-	return false
+	return livenessOk
 }
 
 var isPortOpenMock *bool

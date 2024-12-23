@@ -2,11 +2,9 @@ package server
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
-	"github.com/glossd/yetis/common/unix"
 	"log"
 	"slices"
 	"strconv"
@@ -29,7 +27,7 @@ func PostDeployment(spec common.DeploymentSpec) (*fetch.Empty, error) {
 		return nil, err
 	}
 
-	runLivenessCheck(spec, 2)
+	runLivenessCheck(spec, 2, nil)
 	return &fetch.Empty{}, nil
 }
 
@@ -185,7 +183,10 @@ func DeleteDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 		return nil, fmt.Errorf(`'%s' doesn't exist'`, name)
 	}
 
-	terminateProcess(r.Context, d)
+	err := terminateProcess(r.Context, d)
+	if err != nil {
+		return nil, err
+	}
 
 	deleteDeployment(name)
 	return &fetch.Empty{}, nil
@@ -202,23 +203,26 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 		return nil, fmt.Errorf(`deployment '%s' doesn't exist'`, name)
 	}
 
-	err := terminateProcess(r.Context, d)
-	if err != nil {
-		return nil, err
-	}
+	// todo find a way to stop liveness routine
+	switch d.spec.Strategy.Type {
+	case common.RollingUpdate:
+		// create then delete old one
 
-	deleteDeployment(name)
-	return &fetch.Empty{}, nil
-}
-
-func terminateProcess(ctx context.Context, r resource) error {
-	if r.getPid() != 0 {
-		err := unix.TerminateProcess(ctx, r.getPid())
+	case common.Recreate:
+		fallthrough
+	default:
+		err := terminateProcess(r.Context, d)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("failed to terminate deployment's process: %s", err)
 		}
+		updateDeploymentStatus(name, Pending)
+		pid, logpath, err := launchProcess(d.spec)
+		if err != nil {
+			return nil, fmt.Errorf("failed to launch a new deployment's process: %s", err)
+		}
+		updateDeployment(d.spec, pid, logpath, false)
+
 	}
-	// todo instead of killing by port, terminate function should terminate all children as well.
-	unix.KillByPort(r.getPort())
-	return nil
+
+	return &fetch.Empty{}, nil
 }

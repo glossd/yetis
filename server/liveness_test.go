@@ -31,7 +31,7 @@ func TestRunLivenessToFailed(t *testing.T) {
 	assertD(t, Pending, 0)
 	tickerMock = &ticker
 	defer func() { tickerMock = nil }()
-	runLivenessCheck(config, 2)
+	runLivenessCheck(config, 2, nil)
 	time.Sleep(time.Millisecond)
 
 	assertD(t, Running, 0)
@@ -77,7 +77,7 @@ func TestRunLivenessSuccess(t *testing.T) {
 	assertD(t, Pending, 0)
 	tickerMock = &ticker
 	defer func() { tickerMock = nil }()
-	runLivenessCheck(config, 2)
+	runLivenessCheck(config, 2, nil)
 	time.Sleep(time.Millisecond)
 	assertD(t, Running, 0)
 	tick()
