@@ -18,8 +18,6 @@ type Threshold struct {
 	FailureCount int
 }
 
-var tickerMock *chan time.Time
-
 // Non-blocking.
 func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool) {
 	if stop == nil {
@@ -27,15 +25,10 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 	}
 	livenessMap.Store(c.Name, stop)
 	time.AfterFunc(c.LivenessProbe.InitialDelayDuration(), func() {
-		var ticker <-chan time.Time
-		if tickerMock != nil {
-			ticker = *tickerMock
-		} else {
-			ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
-		}
+		var ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
 
-		// run check instantly
-		if t := checkLiveness(c.Name, restartsLimit); t == livenessStop {
+		// check instantly
+		if t := heartbeat(c.Name, restartsLimit); t == dead {
 			close(stop)
 			return
 		}
@@ -45,11 +38,11 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 				close(stop)
 				return
 			case <-ticker:
-				switch checkLiveness(c.Name, restartsLimit) {
-				case livenessStop:
+				switch heartbeat(c.Name, restartsLimit) {
+				case dead:
 					close(stop)
 					return
-				case livenessFailed:
+				case tryAgain:
 					time.AfterFunc(time.Duration(restartsLimit/2)*time.Minute, func() {
 						runLivenessCheck(c, restartsLimit*2, stop)
 					})
@@ -60,19 +53,19 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 	})
 }
 
-type checkLivenessResult int
+type heartbeatResult int
 
 const (
-	livenessStop = iota
-	livenessFailed
-	livenessOk
+	dead = iota
+	tryAgain
+	alive
 )
 
-func checkLiveness(deploymentName string, restartsLimit int) checkLivenessResult {
+func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 	dep, ok := getDeployment(deploymentName)
 	if !ok {
 		// release go routine for GC
-		return livenessStop
+		return dead
 	}
 	c := dep.spec
 
@@ -96,12 +89,12 @@ func checkLiveness(deploymentName string, restartsLimit int) checkLivenessResult
 		p, ok := getDeployment(c.Name)
 		if !ok {
 			log.Printf("Deployment '%s' reached failure threshold, but it doesn't exist\n", c.Name)
-			return livenessStop
+			return dead
 		}
 		if p.restarts >= restartsLimit {
 			updateDeploymentStatus(c.Name, Failed)
 			thresholdMap.Delete(c.Name)
-			return livenessFailed
+			return tryAgain
 		}
 		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", c.Name)
 		updateDeploymentStatus(c.Name, Terminating)
@@ -119,7 +112,7 @@ func checkLiveness(deploymentName string, restartsLimit int) checkLivenessResult
 		c, err := setDeploymentPortEnv(c)
 		if err != nil {
 			log.Printf("failed to set prot env for %s deployment: %s \n", c.Name, err)
-			return livenessOk
+			return alive
 		}
 
 		updateDeployment(c, 0, "", false)
@@ -135,12 +128,12 @@ func checkLiveness(deploymentName string, restartsLimit int) checkLivenessResult
 		}
 		// wait for initial delay
 		time.Sleep(c.LivenessProbe.InitialDelayDuration())
-		return livenessOk
+		return alive
 	}
 	if tsh.SuccessCount >= c.LivenessProbe.SuccessThreshold {
 		updateDeploymentStatus(c.Name, Running)
 	}
-	return livenessOk
+	return alive
 }
 
 var isPortOpenMock *bool

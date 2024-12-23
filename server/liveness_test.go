@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestRunLivenessToFailed(t *testing.T) {
+func TestLivenessFailed(t *testing.T) {
 	config := common.DeploymentSpec{
 		Name:   "liveness",
 		Cmd:    "echo 'Liveness Test'",
@@ -18,41 +18,34 @@ func TestRunLivenessToFailed(t *testing.T) {
 			SuccessThreshold:    1,
 		},
 	}
-	var ticker = make(chan time.Time)
-	tick := func() {
-		ticker <- time.Now()
-		time.Sleep(50 * time.Millisecond)
-	}
+
 	err := startDeployment(config)
 	assert(t, err, nil)
 	defer deleteDeployment(config.Name)
 	isPortOpenMock = BoolPtr(true)
 	defer func() { isPortOpenMock = nil }()
 	assertD(t, Pending, 0)
-	tickerMock = &ticker
-	defer func() { tickerMock = nil }()
-	runLivenessCheck(config, 2, nil)
+	heartbeat(config.Name, 2)
 	time.Sleep(time.Millisecond)
-
 	assertD(t, Running, 0)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Running, 0)
 	isPortOpenMock = BoolPtr(false)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Running, 0)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Pending, 1)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Pending, 1)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Pending, 2)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Pending, 2)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Failed, 2)
 }
 
-func TestRunLivenessSuccess(t *testing.T) {
+func TestLivenessResurrection(t *testing.T) {
 	config := common.DeploymentSpec{
 		Name:   "liveness",
 		Cmd:    "echo 'Liveness Test'",
@@ -64,31 +57,23 @@ func TestRunLivenessSuccess(t *testing.T) {
 			SuccessThreshold:    1,
 		},
 	}
-	var ticker = make(chan time.Time)
-	tick := func() {
-		ticker <- time.Now()
-		time.Sleep(50 * time.Millisecond)
-	}
 	err := startDeployment(config)
 	assert(t, err, nil)
 	defer deleteDeployment(config.Name)
 	isPortOpenMock = BoolPtr(true)
 	defer func() { isPortOpenMock = nil }()
 	assertD(t, Pending, 0)
-	tickerMock = &ticker
-	defer func() { tickerMock = nil }()
-	runLivenessCheck(config, 2, nil)
-	time.Sleep(time.Millisecond)
+	heartbeat(config.Name, 2)
 	assertD(t, Running, 0)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Running, 0)
 	isPortOpenMock = BoolPtr(false)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Running, 0)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Pending, 1)
 	isPortOpenMock = BoolPtr(true)
-	tick()
+	heartbeat(config.Name, 2)
 	assertD(t, Running, 1)
 }
 
