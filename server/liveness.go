@@ -30,45 +30,60 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 		stop = make(chan bool)
 	}
 	livenessMap.Store(c.Name, stop)
-	time.AfterFunc(c.LivenessProbe.InitialDelayDuration(), func() {
-		var ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
-
-		cleanUp := func() {
-			livenessMap.Delete(c.Name)
-			thresholdMap.Delete(c.Name)
-		}
-		// check instantly
-		if t := heartbeat(c.Name, restartsLimit); t == dead {
+	cleanUp := func() {
+		livenessMap.Delete(c.Name)
+		thresholdMap.Delete(c.Name)
+	}
+	go func() {
+		select {
+		case <-stop:
 			cleanUp()
 			return
-		}
-		for {
-			select {
-			case <-stop:
+		case <-time.After(c.LivenessProbe.InitialDelayDuration()):
+			var ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
+
+			// check instantly
+			if t := heartbeat(c.Name, restartsLimit); t == dead {
 				cleanUp()
 				return
-			case <-ticker:
-				switch heartbeat(c.Name, restartsLimit) {
-				case dead:
+			}
+			for {
+				select {
+				case <-stop:
 					cleanUp()
 					return
-				case tryAgain:
-					time.AfterFunc(time.Duration(restartsLimit/2)*time.Minute, func() {
-						runLivenessCheck(c, restartsLimit*2, stop)
-					})
-					return
+				case <-ticker:
+					switch heartbeat(c.Name, restartsLimit) {
+					case dead:
+						cleanUp()
+						return
+					case tryAgain:
+						select {
+						case <-stop:
+							cleanUp()
+							return
+						case <-time.After(time.Duration(restartsLimit/2) * time.Minute):
+							runLivenessCheck(c, restartsLimit*2, stop)
+							return
+						}
+					}
 				}
 			}
 		}
-	})
+	}()
 }
 
 func deleteLivenessCheck(name string) bool {
 	v, ok := livenessMap.Load(name)
 	if ok {
-		v <- true
-		close(v)
-		return true
+		select {
+		case v <- true:
+			close(v)
+			return true
+		case <-time.After(3 * time.Second):
+			log.Printf("delete liveness %s timeout\n", name)
+			return false
+		}
 	}
 	return false
 }

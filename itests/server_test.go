@@ -14,7 +14,6 @@ import (
 )
 
 func TestLivenessRestart(t *testing.T) {
-	unix.KillByPort(server.YetisServerPort)
 	go server.Run()
 	t.Cleanup(server.Stop)
 	// let the server start
@@ -82,8 +81,11 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 		t.Fatal("nc haven't started")
 	}
 	client.ShutdownServer(100 * time.Millisecond)
-	if common.IsPortOpen(27000) {
+	if common.IsPortOpenRetry(27000, 50*time.Millisecond, 10) {
 		t.Fatal("nc should've stopped")
+	}
+	if common.IsPortOpenRetry(server.YetisServerPort, 50*time.Millisecond, 10) {
+		t.Fatal("server should've stopped")
 	}
 }
 
