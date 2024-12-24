@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func TestRestart(t *testing.T) {
+func TestLivenessRestart(t *testing.T) {
 	unix.KillByPort(server.YetisServerPort)
 	go server.Run()
 	t.Cleanup(server.Stop)

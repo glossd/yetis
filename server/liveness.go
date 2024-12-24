@@ -34,7 +34,6 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 		var ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
 
 		cleanUp := func() {
-			close(stop)
 			livenessMap.Delete(c.Name)
 			thresholdMap.Delete(c.Name)
 		}
@@ -68,6 +67,7 @@ func deleteLivenessCheck(name string) bool {
 	v, ok := livenessMap.Load(name)
 	if ok {
 		v <- true
+		close(v)
 		return true
 	}
 	return false
