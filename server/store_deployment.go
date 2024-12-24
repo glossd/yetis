@@ -56,12 +56,14 @@ func (pc ProcessStatus) String() string {
 
 var writeLock sync.Mutex
 
-func firstSaveDeployment(c common.DeploymentSpec) bool {
+func saveDeployment(c common.DeploymentSpec, upsert bool) bool {
 	writeLock.Lock()
 	defer writeLock.Unlock()
-	_, ok := deploymentStore.Load(c.Name)
-	if ok {
-		return false
+	if !upsert {
+		_, ok := deploymentStore.Load(c.Name)
+		if ok {
+			return false
+		}
 	}
 	deploymentStore.Store(c.Name, deployment{createdAt: time.Now(), spec: c})
 	return true

@@ -18,6 +18,12 @@ type Threshold struct {
 	FailureCount int
 }
 
+const defaultRestartLimit = 2
+
+func startLivenessCheck(c common.DeploymentSpec) {
+	runLivenessCheck(c, defaultRestartLimit, nil)
+}
+
 // Non-blocking.
 func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool) {
 	if stop == nil {
@@ -27,20 +33,25 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 	time.AfterFunc(c.LivenessProbe.InitialDelayDuration(), func() {
 		var ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
 
+		cleanUp := func() {
+			close(stop)
+			livenessMap.Delete(c.Name)
+			thresholdMap.Delete(c.Name)
+		}
 		// check instantly
 		if t := heartbeat(c.Name, restartsLimit); t == dead {
-			close(stop)
+			cleanUp()
 			return
 		}
 		for {
 			select {
 			case <-stop:
-				close(stop)
+				cleanUp()
 				return
 			case <-ticker:
 				switch heartbeat(c.Name, restartsLimit) {
 				case dead:
-					close(stop)
+					cleanUp()
 					return
 				case tryAgain:
 					time.AfterFunc(time.Duration(restartsLimit/2)*time.Minute, func() {
@@ -51,6 +62,15 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 			}
 		}
 	})
+}
+
+func deleteLivenessCheck(name string) bool {
+	v, ok := livenessMap.Load(name)
+	if ok {
+		v <- true
+		return true
+	}
+	return false
 }
 
 type heartbeatResult int

@@ -12,23 +12,43 @@ import (
 )
 
 func PostDeployment(spec common.DeploymentSpec) (*fetch.Empty, error) {
-	spec, err := setDeploymentPortEnv(spec)
+	spec, err := startDeploymentWithEnv(spec, false)
 	if err != nil {
 		return nil, err
+	}
+
+	startLivenessCheck(spec)
+	return &fetch.Empty{}, nil
+}
+
+func startDeploymentWithEnv(spec common.DeploymentSpec, upsert bool) (common.DeploymentSpec, error) {
+	spec, err := setDeploymentPortEnv(spec)
+	if err != nil {
+		return spec, err
 	}
 	spec = spec.WithDefaults().(common.DeploymentSpec)
 	err = spec.Validate()
 	if err != nil {
-		return nil, fmt.Errorf("deployment %s spec is invalid: %s", spec.Name, err)
+		return spec, fmt.Errorf("deployment %s spec is invalid: %s", spec.Name, err)
 	}
 
-	err = startDeployment(spec)
+	saved := saveDeployment(spec, upsert)
+	if !saved {
+		return spec, fmt.Errorf("deployment '%s' already exists", spec.Name)
+	}
+	pid, logPath, err := launchProcess(spec)
 	if err != nil {
-		return nil, err
+		deleteDeployment(spec.Name)
+		return spec, err
 	}
-
-	runLivenessCheck(spec, 2, nil)
-	return &fetch.Empty{}, nil
+	err = updateDeployment(spec, pid, logPath, false)
+	if err != nil {
+		// For this to happen, delete must finish first before launching,
+		// which is hard to imagine because start is asynchronous and delete is synchronous.
+		log.Printf("Failed to update pid after launching process, pid=%d", pid)
+		return spec, err
+	}
+	return spec, nil
 }
 
 func setDeploymentPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error) {
@@ -72,26 +92,6 @@ func getDeploymentPort(s common.DeploymentSpec) int {
 		}
 	}
 	return 0
-}
-
-func startDeployment(c common.DeploymentSpec) error {
-	ok := firstSaveDeployment(c)
-	if !ok {
-		return fmt.Errorf("deployment '%s' already exists", c.Name)
-	}
-	pid, logPath, err := launchProcess(c)
-	if err != nil {
-		deleteDeployment(c.Name)
-		return err
-	}
-	err = updateDeployment(c, pid, logPath, false)
-	if err != nil {
-		// For this to happen, delete must finish first before launching,
-		// which is hard to imagine because start is asynchronous and delete is synchronous.
-		log.Printf("Failed to update pid after launching process, pid=%d", pid)
-		return err
-	}
-	return nil
 }
 
 type DeploymentView struct {
@@ -189,6 +189,7 @@ func DeleteDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	}
 
 	deleteDeployment(name)
+	deleteLivenessCheck(name)
 	return &fetch.Empty{}, nil
 }
 
@@ -198,31 +199,34 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 		return nil, fmt.Errorf(`name can't be empty`)
 	}
 
-	d, ok := getDeployment(name)
+	oldDeployment, ok := getDeployment(name)
 	if !ok {
 		return nil, fmt.Errorf(`deployment '%s' doesn't exist'`, name)
 	}
 
-	// todo find a way to stop liveness routine
-	switch d.spec.Strategy.Type {
-	case common.RollingUpdate:
-		// create then delete old one
-
-	case common.Recreate:
-		fallthrough
-	default:
-		err := terminateProcess(r.Context, d)
+	deleteLivenessCheck(name)
+	var newSpec common.DeploymentSpec
+	var err error
+	if oldDeployment.spec.Strategy.Type == common.RollingUpdate {
+		newSpec, err = startDeploymentWithEnv(oldDeployment.spec, true)
+		if err != nil {
+			return nil, fmt.Errorf("faield to start deployment: %s", err)
+		}
+		err = terminateProcess(r.Context, oldDeployment)
 		if err != nil {
 			return nil, fmt.Errorf("failed to terminate deployment's process: %s", err)
 		}
-		updateDeploymentStatus(name, Pending)
-		pid, logpath, err := launchProcess(d.spec)
+	} else {
+		err := terminateProcess(r.Context, oldDeployment)
 		if err != nil {
-			return nil, fmt.Errorf("failed to launch a new deployment's process: %s", err)
+			return nil, fmt.Errorf("failed to terminate deployment's process: %s", err)
 		}
-		updateDeployment(d.spec, pid, logpath, false)
-
+		newSpec, err = startDeploymentWithEnv(oldDeployment.spec, true)
+		if err != nil {
+			return nil, fmt.Errorf("faield to start deployment: %s", err)
+		}
 	}
+	startLivenessCheck(newSpec)
 
 	return &fetch.Empty{}, nil
 }

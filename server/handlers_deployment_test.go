@@ -10,3 +10,7 @@ func TestSortDeployments(t *testing.T) {
 	assert(t, res[0].Name, "a")
 	assert(t, res[1].Name, "b")
 }
+
+func TestRestartDeployment(t *testing.T) {
+	// todo
+}

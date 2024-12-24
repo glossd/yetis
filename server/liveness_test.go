@@ -13,13 +13,13 @@ func TestLivenessFailed(t *testing.T) {
 		Logdir: "stdout",
 		LivenessProbe: common.Probe{
 			TcpSocket:           common.TcpSocket{Port: 27000},
-			InitialDelaySeconds: 0,
+			InitialDelaySeconds: 0.01,
 			FailureThreshold:    2,
 			SuccessThreshold:    1,
 		},
 	}
 
-	err := startDeployment(config)
+	_, err := startDeploymentWithEnv(config, false)
 	assert(t, err, nil)
 	defer deleteDeployment(config.Name)
 	isPortOpenMock = BoolPtr(true)
@@ -52,12 +52,12 @@ func TestLivenessResurrection(t *testing.T) {
 		Logdir: "stdout",
 		LivenessProbe: common.Probe{
 			TcpSocket:           common.TcpSocket{Port: 27000},
-			InitialDelaySeconds: 0,
+			InitialDelaySeconds: 0.01,
 			FailureThreshold:    2,
 			SuccessThreshold:    1,
 		},
 	}
-	err := startDeployment(config)
+	_, err := startDeploymentWithEnv(config, false)
 	assert(t, err, nil)
 	defer deleteDeployment(config.Name)
 	isPortOpenMock = BoolPtr(true)
