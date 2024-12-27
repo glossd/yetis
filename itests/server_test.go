@@ -168,6 +168,12 @@ func TestServiceUpdatesWhenDeploymentRestartsOnNewPort(t *testing.T) {
 	checkOK()
 }
 
+func TestRestartRollingUpdate(t *testing.T) {
+	go server.Run()
+	t.Cleanup(server.Stop)
+	// todo
+}
+
 func pwd(t *testing.T) string {
 	fullPath, err := os.Getwd()
 	if err != nil {

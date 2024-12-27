@@ -17,6 +17,7 @@ type service struct {
 	createdAt      time.Time
 	spec           common.ServiceSpec
 	deploymentPort int
+	httpPort       int
 }
 
 func (s service) getPid() int {
@@ -42,7 +43,7 @@ func firstSaveService(s common.ServiceSpec) error {
 	return nil
 }
 
-func updateService(s common.ServiceSpec, pid int, status ProcessStatus, deploymentPort int) error {
+func updateService(s common.ServiceSpec, pid int, status ProcessStatus, deploymentPort, httpPort int) error {
 	serviceWriteLock.Lock()
 	defer serviceWriteLock.Unlock()
 
@@ -54,6 +55,7 @@ func updateService(s common.ServiceSpec, pid int, status ProcessStatus, deployme
 	v.pid = pid
 	v.status = status
 	v.deploymentPort = deploymentPort
+	v.httpPort = httpPort
 	serviceStore.Store(s.Selector.Name, v)
 	return nil
 }

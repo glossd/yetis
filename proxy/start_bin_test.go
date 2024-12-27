@@ -28,7 +28,7 @@ func TestExec(t *testing.T) {
 
 func run(t *testing.T, toPort int) {
 	port := 4567
-	pid, err := Exec(port, toPort)
+	pid, httpPort, err := Exec(port, toPort)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,4 +46,11 @@ func run(t *testing.T, toPort int) {
 	if res != "OK" {
 		t.Fatal("failed to proxy to http server")
 	}
+	if !common.IsPortOpenRetry(httpPort, 50*time.Millisecond, 20) {
+		t.Fatal("http port is closed")
+	}
+}
+
+func TestExecChangePort(t *testing.T) {
+	// todo
 }

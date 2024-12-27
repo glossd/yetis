@@ -2,17 +2,35 @@ package proxy
 
 import (
 	"fmt"
+	"github.com/glossd/fetch"
 	"io"
 	"log"
 	"net"
+	"net/http"
+	"sync/atomic"
 )
 
-func Start(listenPort, toPort int) {
+var proxyToPort atomic.Int32
+
+func Start(listenPort, toPort, httpPort int) {
+	proxyToPort.Store(int32(toPort))
 	lis, err := net.ListenTCP("tcp", &net.TCPAddr{Port: listenPort})
 	if err != nil {
 		panic("Listen: " + err.Error())
 	}
 	defer lis.Close()
+
+	go func() {
+		mux := &http.ServeMux{}
+		mux.HandleFunc("/update", fetch.ToHandlerFunc(func(in int32) (*fetch.Empty, error) {
+			proxyToPort.Store(in)
+			return nil, nil
+		}))
+		serveErr := http.ListenAndServe(fmt.Sprintf(":%d", httpPort), mux)
+		if serveErr != nil && serveErr != http.ErrServerClosed {
+			log.Fatalf("Proxy http server failed to start: %s\n", err)
+		}
+	}()
 
 	for {
 		c, err := lis.Accept()
@@ -20,7 +38,7 @@ func Start(listenPort, toPort int) {
 			log.Println("Accept error:", err)
 			return
 		}
-		go proxyTo(c, toPort)
+		go proxyTo(c, int(proxyToPort.Load()))
 	}
 }
 

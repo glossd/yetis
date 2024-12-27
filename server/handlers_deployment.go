@@ -212,6 +212,13 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 		if err != nil {
 			return nil, fmt.Errorf("faield to start deployment: %s", err)
 		}
+		// todo is the new deployment ready
+		err := updateServicePointingToNewPort(newSpec)
+		if err != nil {
+			DeleteDeployment(fetch.Request[fetch.Empty]{PathValues: map[string]string{"name":name}})
+			return nil, fmt.Errorf("failed to reload services target port: %s", err)
+		}
+
 		err = terminateProcess(r.Context, oldDeployment)
 		if err != nil {
 			return nil, fmt.Errorf("failed to terminate deployment's process: %s", err)

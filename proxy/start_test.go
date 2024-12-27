@@ -17,7 +17,7 @@ func TestProxyingHTTP(t *testing.T) {
 	})
 	go http.ListenAndServe(fmt.Sprintf(":%d", httpServerPort), mux)
 	proxyPort := 24634
-	go Start(proxyPort, httpServerPort)
+	go Start(proxyPort, httpServerPort, 45796)
 	time.Sleep(5 * time.Millisecond)
 	for i := 0; i < 5; i++ {
 		res, err := fetch.Get[string](fmt.Sprintf("http://localhost:%d/hello", proxyPort))

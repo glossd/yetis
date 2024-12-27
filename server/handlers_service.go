@@ -63,12 +63,12 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 		return nil, err
 	}
 	deploymentPort := getDeploymentPort(dep.spec)
-	pid, err := proxy.Exec(spec.Port, deploymentPort)
+	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start service: %s", err)
 	}
 	log.Printf("launched service for %s deployment on port %d to port %d", spec.Selector.Name, spec.Port, deploymentPort)
-	err = updateService(spec, pid, Pending, deploymentPort)
+	err = updateService(spec, pid, Pending, deploymentPort, httpPort)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,8 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	return nil, nil
 }
 
-func RestartService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+func UpdateService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+	// todo reload target port without stopping proxy
 	name := in.PathValues["name"]
 	serv, ok := serviceStore.Load(name)
 	if !ok {

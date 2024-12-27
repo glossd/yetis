@@ -73,6 +73,7 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 	}()
 }
 
+// it seems timeout happens during TestLivenessRestart on server shutdown.
 func deleteLivenessCheck(name string) bool {
 	v, ok := livenessMap.Load(name)
 	if ok {
@@ -181,7 +182,8 @@ func isPortOpen(port int, dur time.Duration) bool {
 }
 
 func updateServicePointingToNewPort(s common.DeploymentSpec) error {
-	_, err := RestartService(fetch.Request[fetch.Empty]{Context: context.Background(), PathValues: map[string]string{"name": s.Name}})
+	// todo the tcp proxy must automatically change the deployment port without stopping for RollingUpdate
+	_, err := UpdateService(fetch.Request[fetch.Empty]{Context: context.Background(), PathValues: map[string]string{"name": s.Name}})
 	if err != nil {
 		if ferr, ok := err.(*fetch.Error); ok && ferr.Status == 404 {
 			return nil
