@@ -63,7 +63,8 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 		return nil, err
 	}
 	deploymentPort := getDeploymentPort(dep.spec)
-	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort)
+	// todo add logs
+	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to start service: %s", err)
 	}

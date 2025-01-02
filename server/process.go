@@ -28,6 +28,7 @@ func launchProcess(c common.DeploymentSpec) (pid int, logPath string, err error)
 		if err != nil {
 			return 0, "", fmt.Errorf("failed to create log file for '%s': %s", c.Name, err)
 		}
+		// todo close the file
 		pid, err = launchProcessWithOut(c, file, false)
 		return pid, fullPath, err
 	}
