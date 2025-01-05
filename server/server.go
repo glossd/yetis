@@ -37,7 +37,7 @@ func Run() {
 	mux.HandleFunc("GET /services/{name}", fetch.ToHandlerFunc(GetService))
 	mux.HandleFunc("POST /services", fetch.ToHandlerFunc(PostService))
 	mux.HandleFunc("DELETE /services/{name}", fetch.ToHandlerFunc(DeleteService))
-	mux.HandleFunc("PUT /services/{name}", fetch.ToHandlerFunc(UpdateService))
+	mux.HandleFunc("PUT /services/{name}/port", fetch.ToHandlerFunc(UpdateServiceTargetPort))
 
 	runWithGracefulShutDown(mux)
 }

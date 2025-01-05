@@ -102,6 +102,14 @@ func getDeployment(name string) (deployment, bool) {
 	return deploymentStore.Load(name)
 }
 
+func getDeploymentStatus(name string) (ProcessStatus, bool) {
+	dep, ok := deploymentStore.Load(name)
+	if !ok {
+		return Pending, false
+	}
+	return dep.status, true
+}
+
 func deleteDeployment(name string) {
 	deploymentStore.Delete(name)
 }

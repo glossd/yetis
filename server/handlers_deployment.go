@@ -2,10 +2,12 @@ package server
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
 	"log"
+	"regexp"
 	"slices"
 	"strconv"
 	"time"
@@ -22,11 +24,10 @@ func PostDeployment(spec common.DeploymentSpec) (*fetch.Empty, error) {
 }
 
 func startDeploymentWithEnv(spec common.DeploymentSpec, upsert bool) (common.DeploymentSpec, error) {
-	spec, err := setDeploymentPortEnv(spec)
+	spec, err := setDeploymentPortEnv(spec.WithDefaults().(common.DeploymentSpec))
 	if err != nil {
 		return spec, err
 	}
-	spec = spec.WithDefaults().(common.DeploymentSpec)
 	err = spec.Validate()
 	if err != nil {
 		return spec, fmt.Errorf("deployment %s spec is invalid: %s", spec.Name, err)
@@ -208,21 +209,46 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	var newSpec common.DeploymentSpec
 	var err error
 	if oldDeployment.spec.Strategy.Type == common.RollingUpdate {
-		newSpec, err = startDeploymentWithEnv(oldDeployment.spec, true)
+		newSpec = oldDeployment.spec
+		newSpec.Name = upgradeNameForRollingUpdate(newSpec.Name)
+		newSpec, err = startDeploymentWithEnv(newSpec, false)
 		if err != nil {
-			return nil, fmt.Errorf("faield to start deployment: %s", err)
-		}
-		// todo is the new deployment ready
-		err := updateServicePointingToNewPort(newSpec)
-		if err != nil {
-			DeleteDeployment(fetch.Request[fetch.Empty]{PathValues: map[string]string{"name":name}})
-			return nil, fmt.Errorf("failed to reload services target port: %s", err)
+			return nil, fmt.Errorf("rastart failed: the new rolling deployment of '%s' failed to start: %s", oldDeployment.spec.Name, err)
 		}
 
-		err = terminateProcess(r.Context, oldDeployment)
-		if err != nil {
-			return nil, fmt.Errorf("failed to terminate deployment's process: %s", err)
+		// check that the new deployment is healthy
+		timeout := 100*time.Millisecond + newSpec.LivenessProbe.InitialDelayDuration() + time.Duration(newSpec.LivenessProbe.FailureThreshold)*newSpec.LivenessProbe.PeriodDuration()
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		for {
+			select {
+			case <-ctx.Done():
+				// don't delete, need to see what went wrong.
+				return nil, fmt.Errorf("rastart failed: the new '%s' deployment isn't healthy: context deadline exceeded", oldDeployment.spec.Name)
+			default:
+				depStatus, ok := getDeploymentStatus(newSpec.Name)
+				if !ok {
+					// shouldn't happen
+					return nil, fmt.Errorf("rastart failed: new '%s' deployment not found", oldDeployment.spec.Name)
+				}
+				if depStatus == Running {
+					break
+				}
+			}
 		}
+
+		// point the service to the new port
+		err := updateServicePointingToNewPort(newSpec)
+		if err != nil {
+			return nil, fmt.Errorf("failed to reload service's target port: %s", err)
+		}
+
+		// delete old deployment
+		_, err = DeleteDeployment(fetch.Request[fetch.Empty]{Context: r.Context, PathValues: map[string]string{"name": oldDeployment.spec.Name}})
+		if err != nil {
+			return nil, fmt.Errorf("failed to delete old deployment '%s': %s", oldDeployment.spec.Name, err)
+		}
+
 	} else {
 		err := terminateProcess(r.Context, oldDeployment)
 		if err != nil {
@@ -232,8 +258,30 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 		if err != nil {
 			return nil, fmt.Errorf("faield to start deployment: %s", err)
 		}
+
+		err = updateServicePointingToNewPort(newSpec)
+		if err != nil {
+			return nil, fmt.Errorf("failed to reload services target port: %s", err)
+		}
+		startLivenessCheck(newSpec)
 	}
-	startLivenessCheck(newSpec)
 
 	return &fetch.Empty{}, nil
+}
+
+var rollingUpdatePattern = regexp.MustCompile(`^.*-(\d+)$`)
+
+func upgradeNameForRollingUpdate(oldName string) string {
+	matchPairs := rollingUpdatePattern.FindStringSubmatchIndex(oldName)
+	if len(matchPairs) == 0 {
+		return oldName + "-1"
+	}
+	idx := matchPairs[len(matchPairs)-2]
+	numStr := oldName[idx:]
+	num, err := strconv.Atoi(numStr)
+	if err != nil {
+		return oldName + "-1"
+	}
+
+	return oldName[:idx] + strconv.Itoa(num+1)
 }

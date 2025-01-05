@@ -17,7 +17,7 @@ type service struct {
 	createdAt      time.Time
 	spec           common.ServiceSpec
 	deploymentPort int
-	httpPort       int
+	updatePort     int
 }
 
 func (s service) getPid() int {
@@ -55,7 +55,7 @@ func updateService(s common.ServiceSpec, pid int, status ProcessStatus, deployme
 	v.pid = pid
 	v.status = status
 	v.deploymentPort = deploymentPort
-	v.httpPort = httpPort
+	v.updatePort = httpPort
 	serviceStore.Store(s.Selector.Name, v)
 	return nil
 }

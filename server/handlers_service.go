@@ -92,22 +92,19 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	return nil, nil
 }
 
-func UpdateService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+func UpdateServiceTargetPort(in fetch.Request[int]) (*fetch.Empty, error) {
 	// todo reload target port without stopping proxy
 	name := in.PathValues["name"]
 	serv, ok := serviceStore.Load(name)
 	if !ok {
 		return nil, serviceNotFound(name)
 	}
-	_, err := DeleteService(in)
+
+	_, err := fetch.Post[fetch.Empty](fmt.Sprintf("http://localhost:%d/update", serv.updatePort), in.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete service: %s", err)
+		return nil, fmt.Errorf("failed to update port: %s", err)
 	}
 
-	_, err = PostService(serv.spec)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create service: %s", err)
-	}
 	return nil, nil
 }
 

@@ -183,7 +183,7 @@ func isPortOpen(port int, dur time.Duration) bool {
 
 func updateServicePointingToNewPort(s common.DeploymentSpec) error {
 	// todo the tcp proxy must automatically change the deployment port without stopping for RollingUpdate
-	_, err := UpdateService(fetch.Request[fetch.Empty]{Context: context.Background(), PathValues: map[string]string{"name": s.Name}})
+	_, err := UpdateServiceTargetPort(fetch.Request[int]{Context: context.Background(), PathValues: map[string]string{"name": s.Name}, Body: getDeploymentPort(s)})
 	if err != nil {
 		if ferr, ok := err.(*fetch.Error); ok && ferr.Status == 404 {
 			return nil
