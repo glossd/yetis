@@ -22,7 +22,7 @@ func ListService(_ fetch.Empty) ([]ServiceView, error) {
 		res = append(res, ServiceView{
 			Pid:            v.pid,
 			Port:           v.spec.Port,
-			DeploymentPort: v.deploymentPort,
+			DeploymentPort: v.targetPort,
 			SelectorName:   v.spec.Selector.Name,
 		})
 		return true
@@ -46,7 +46,7 @@ func GetService(in fetch.Request[fetch.Empty]) (*GetServiceResponse, error) {
 	return &GetServiceResponse{
 		Pid:            ser.pid,
 		Port:           ser.spec.Port,
-		DeploymentPort: ser.deploymentPort,
+		DeploymentPort: ser.targetPort,
 		SelectorName:   ser.spec.Selector.Name,
 	}, nil
 }
@@ -64,11 +64,11 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	}
 	deploymentPort := getDeploymentPort(dep.spec)
 	// todo add logs
-	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, "")
+	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, "/tmp/exec.log")
 	if err != nil {
 		return nil, fmt.Errorf("failed to start service: %s", err)
 	}
-	log.Printf("launched service for %s deployment on port %d to port %d", spec.Selector.Name, spec.Port, deploymentPort)
+	log.Printf("launched service for %s deployment on port %d to port %d with updatePort %d", spec.Selector.Name, spec.Port, deploymentPort, httpPort)
 	err = updateService(spec, pid, Pending, deploymentPort, httpPort)
 	if err != nil {
 		return nil, err
@@ -92,20 +92,22 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	return nil, nil
 }
 
-func UpdateServiceTargetPort(in fetch.Request[int]) (*fetch.Empty, error) {
-	// todo reload target port without stopping proxy
+func UpdateServiceTargetPort(in fetch.Request[int]) error {
 	name := in.PathValues["name"]
 	serv, ok := serviceStore.Load(name)
 	if !ok {
-		return nil, serviceNotFound(name)
+		return serviceNotFound(name)
 	}
 
-	_, err := fetch.Post[fetch.Empty](fmt.Sprintf("http://localhost:%d/update", serv.updatePort), in.Body)
+	newTargetPort := in.Body
+	_, err := fetch.Post[fetch.Empty](fmt.Sprintf("http://localhost:%d/update", serv.updatePort), newTargetPort)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update port: %s", err)
+		return fmt.Errorf("failed to update port: %s", err)
 	}
+	serv.targetPort = newTargetPort
+	serviceStore.Store(name, serv)
 
-	return nil, nil
+	return nil
 }
 
 func serviceNotFound(name string) *fetch.Error {

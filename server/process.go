@@ -130,6 +130,6 @@ func terminateProcess(ctx context.Context, r resource) error {
 		}
 	}
 	// todo instead of killing by port, terminate function should terminate all children as well.
-	unix.KillByPort(r.getPort())
+	unix.KillByPort(r.getPort(), true)
 	return nil
 }

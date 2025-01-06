@@ -30,3 +30,22 @@ func TestUpgradeNameForRollingUpdate(t *testing.T) {
 		}
 	}
 }
+
+func TestRootNameForRollingUpdate(t *testing.T) {
+	type testCase struct {
+		I string
+		O string
+	}
+	var cases = []testCase{
+		{I: "hello-1", O: "hello"},
+		{I: "hello", O: "hello"},
+		{I: "hello-12", O: "hello"},
+		{I: "hello-1-sec-1", O: "hello-1-sec"},
+	}
+	for _, c := range cases {
+		got := rootNameForRollingUpdate(c.I)
+		if c.O != got {
+			t.Errorf("expected %s, got %s", c.O, got)
+		}
+	}
+}

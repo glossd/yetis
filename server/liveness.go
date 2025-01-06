@@ -135,6 +135,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", c.Name)
 		updateDeploymentStatus(c.Name, Terminating)
 		ctx, cancelCtx := context.WithTimeout(context.Background(), c.LivenessProbe.PeriodDuration())
+		defer cancelCtx()
 		err := terminateProcess(ctx, p)
 		if err != nil {
 			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", c.Name, p.pid)
@@ -142,7 +143,6 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 			log.Printf("terminated '%s' deployment, pid=%d\n", c.Name, p.pid)
 		}
 
-		cancelCtx()
 		updateDeploymentStatus(c.Name, Pending)
 
 		c, err := setDeploymentPortEnv(c)
@@ -151,16 +151,18 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 			return alive
 		}
 
-		updateDeployment(c, 0, "", false)
+		_ = updateDeployment(c, 0, "", false)
 		pid, logPath, err := launchProcess(c)
 		if err != nil {
 			log.Printf("Liveness failed to restart deployment '%s': %s\n", c.Name, err)
 		}
-		updateDeployment(c, pid, logPath, true)
+		_ = updateDeployment(c, pid, logPath, true)
 		thresholdMap.Delete(c.Name)
-		err = updateServicePointingToNewPort(c)
+		err = updateServicePointingToNewPort(ctx, c)
 		if err != nil {
 			log.Printf("Liveness restarted deployment, but failed to restart service: %s", err)
+		} else {
+			log.Printf("Liveness changed service of '%s' target port to %d\n", c.Name, getDeploymentPort(c))
 		}
 		// wait for initial delay
 		time.Sleep(c.LivenessProbe.InitialDelayDuration())
@@ -181,9 +183,9 @@ func isPortOpen(port int, dur time.Duration) bool {
 	return common.IsPortOpenTimeout(port, dur)
 }
 
-func updateServicePointingToNewPort(s common.DeploymentSpec) error {
+func updateServicePointingToNewPort(ctx context.Context, s common.DeploymentSpec) error {
 	// todo the tcp proxy must automatically change the deployment port without stopping for RollingUpdate
-	_, err := UpdateServiceTargetPort(fetch.Request[int]{Context: context.Background(), PathValues: map[string]string{"name": s.Name}, Body: getDeploymentPort(s)})
+	err := UpdateServiceTargetPort(fetch.Request[int]{Context: ctx, Body: getDeploymentPort(s)}.WithPathValue("name", s.Name))
 	if err != nil {
 		if ferr, ok := err.(*fetch.Error); ok && ferr.Status == 404 {
 			return nil

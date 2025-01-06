@@ -61,7 +61,7 @@ func Start(listenPort, targetPort, httpPort int) {
 				w.WriteHeader(400)
 				w.Write([]byte("expected a number in body: " + err.Error()))
 			}
-			fmt.Printf("Switching to new port: %d", newPort)
+			fmt.Printf("Switching to new port: %d\n", newPort)
 			targetPortVar.Store(newPort)
 
 		})
@@ -79,11 +79,13 @@ func Start(listenPort, targetPort, httpPort int) {
 			fmt.Println("Accept error:", err)
 			return
 		}
+		fmt.Println("Accept", c.LocalAddr(), c.RemoteAddr())
 		go proxyTo(c, int(targetPortVar.Load()))
 	}
 }
 
 func proxyTo(inCon net.Conn, port int) {
+	defer inCon.Close()
 	dialCon, err := net.Dial("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		fmt.Println("Dial error:", err)
@@ -91,15 +93,18 @@ func proxyTo(inCon net.Conn, port int) {
 	}
 	defer dialCon.Close()
 
+	done := make(chan bool)
 	go func() {
 		_, err := io.Copy(dialCon, inCon)
 		if err != nil {
-			fmt.Printf("Error sending to service: %v", err)
+			fmt.Printf("Error sending to service: %v\n", err)
 		}
+		done <- true
 	}()
 
 	_, err = io.Copy(inCon, dialCon)
 	if err != nil {
-		fmt.Printf("Error sending to client: %v", err)
+		fmt.Printf("Error sending to deployment: %v\n", err)
 	}
+	<-done
 }

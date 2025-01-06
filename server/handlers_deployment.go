@@ -13,14 +13,28 @@ import (
 	"time"
 )
 
-func PostDeployment(spec common.DeploymentSpec) (*fetch.Empty, error) {
+func PostDeployment(spec common.DeploymentSpec) error {
+	if spec.Strategy.Type == common.RollingUpdate {
+		// check the name was upgraded
+		var err error
+		deploymentStore.Range(func(name string, d deployment) bool {
+			if spec.Name == rootNameForRollingUpdate(name) {
+				err = fmt.Errorf("deployment '%s' has a rolling update name: %s", spec.Name, name)
+				return false
+			}
+			return true
+		})
+		if err != nil {
+			return err
+		}
+	}
 	spec, err := startDeploymentWithEnv(spec, false)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	startLivenessCheck(spec)
-	return &fetch.Empty{}, nil
+	return nil
 }
 
 func startDeploymentWithEnv(spec common.DeploymentSpec, upsert bool) (common.DeploymentSpec, error) {
@@ -105,7 +119,7 @@ type DeploymentView struct {
 	LivenessPort int
 }
 
-func ListDeployment(_ fetch.Empty) ([]DeploymentView, error) {
+func ListDeployment() ([]DeploymentView, error) {
 	var res []DeploymentView
 	rangeDeployments(func(name string, p deployment) {
 		res = append(res, DeploymentView{
@@ -173,36 +187,36 @@ func GetDeployment(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
 	}, nil
 }
 
-func DeleteDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+func DeleteDeployment(r fetch.Request[fetch.Empty]) error {
 	name := r.PathValues["name"]
 	if name == "" {
-		return nil, fmt.Errorf(`name can't be empty`)
+		return fmt.Errorf(`name can't be empty`)
 	}
 
 	d, ok := getDeployment(name)
 	if !ok {
-		return nil, fmt.Errorf(`'%s' doesn't exist'`, name)
+		return fmt.Errorf(`'%s' doesn't exist'`, name)
 	}
 
 	err := terminateProcess(r.Context, d)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	deleteDeployment(name)
 	deleteLivenessCheck(name)
-	return &fetch.Empty{}, nil
+	return nil
 }
 
-func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 	name := r.PathValues["name"]
 	if name == "" {
-		return nil, fmt.Errorf(`name can't be empty`)
+		return fmt.Errorf(`name can't be empty`)
 	}
 
 	oldDeployment, ok := getDeployment(name)
 	if !ok {
-		return nil, fmt.Errorf(`deployment '%s' doesn't exist'`, name)
+		return fmt.Errorf(`deployment '%s' doesn't exist'`, name)
 	}
 
 	deleteLivenessCheck(name)
@@ -213,7 +227,7 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 		newSpec.Name = upgradeNameForRollingUpdate(newSpec.Name)
 		newSpec, err = startDeploymentWithEnv(newSpec, false)
 		if err != nil {
-			return nil, fmt.Errorf("rastart failed: the new rolling deployment of '%s' failed to start: %s", oldDeployment.spec.Name, err)
+			return fmt.Errorf("rastart failed: the new rolling deployment of '%s' failed to start: %s", oldDeployment.spec.Name, err)
 		}
 
 		// check that the new deployment is healthy
@@ -224,12 +238,12 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 			select {
 			case <-ctx.Done():
 				// don't delete, need to see what went wrong.
-				return nil, fmt.Errorf("rastart failed: the new '%s' deployment isn't healthy: context deadline exceeded", oldDeployment.spec.Name)
+				return fmt.Errorf("rastart failed: the new '%s' deployment isn't healthy: context deadline exceeded", oldDeployment.spec.Name)
 			default:
 				depStatus, ok := getDeploymentStatus(newSpec.Name)
 				if !ok {
 					// shouldn't happen
-					return nil, fmt.Errorf("rastart failed: new '%s' deployment not found", oldDeployment.spec.Name)
+					return fmt.Errorf("rastart failed: new '%s' deployment not found", oldDeployment.spec.Name)
 				}
 				if depStatus == Running {
 					break
@@ -238,42 +252,42 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 		}
 
 		// point the service to the new port
-		err := updateServicePointingToNewPort(newSpec)
+		err := updateServicePointingToNewPort(r.Context, newSpec)
 		if err != nil {
-			return nil, fmt.Errorf("failed to reload service's target port: %s", err)
+			return fmt.Errorf("failed to reload service's target port: %s", err)
 		}
 
 		// delete old deployment
-		_, err = DeleteDeployment(fetch.Request[fetch.Empty]{Context: r.Context, PathValues: map[string]string{"name": oldDeployment.spec.Name}})
+		err = DeleteDeployment(fetch.Request[fetch.Empty]{Context: r.Context, PathValues: map[string]string{"name": oldDeployment.spec.Name}})
 		if err != nil {
-			return nil, fmt.Errorf("failed to delete old deployment '%s': %s", oldDeployment.spec.Name, err)
+			return fmt.Errorf("failed to delete old deployment '%s': %s", oldDeployment.spec.Name, err)
 		}
 
 	} else {
 		err := terminateProcess(r.Context, oldDeployment)
 		if err != nil {
-			return nil, fmt.Errorf("failed to terminate deployment's process: %s", err)
+			return fmt.Errorf("failed to terminate deployment's process: %s", err)
 		}
 		newSpec, err = startDeploymentWithEnv(oldDeployment.spec, true)
 		if err != nil {
-			return nil, fmt.Errorf("faield to start deployment: %s", err)
+			return fmt.Errorf("faield to start deployment: %s", err)
 		}
 
-		err = updateServicePointingToNewPort(newSpec)
+		err = updateServicePointingToNewPort(r.Context, newSpec)
 		if err != nil {
-			return nil, fmt.Errorf("failed to reload services target port: %s", err)
+			return fmt.Errorf("failed to reload services target port: %s", err)
 		}
 		startLivenessCheck(newSpec)
 	}
 
-	return &fetch.Empty{}, nil
+	return nil
 }
 
 var rollingUpdatePattern = regexp.MustCompile(`^.*-(\d+)$`)
 
 func upgradeNameForRollingUpdate(oldName string) string {
 	matchPairs := rollingUpdatePattern.FindStringSubmatchIndex(oldName)
-	if len(matchPairs) == 0 {
+	if len(matchPairs) < 1 {
 		return oldName + "-1"
 	}
 	idx := matchPairs[len(matchPairs)-2]
@@ -284,4 +298,15 @@ func upgradeNameForRollingUpdate(oldName string) string {
 	}
 
 	return oldName[:idx] + strconv.Itoa(num+1)
+}
+
+var rollingUpdateRootPattern = regexp.MustCompile(`^(.*)-\d+$`)
+
+func rootNameForRollingUpdate(name string) string {
+	matchPairs := rollingUpdateRootPattern.FindStringSubmatchIndex(name)
+	if len(matchPairs) < 1 {
+		return name
+	}
+	idx := matchPairs[len(matchPairs)-1]
+	return name[:idx]
 }
