@@ -2,7 +2,6 @@ package server
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
@@ -229,16 +228,18 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 		if err != nil {
 			return fmt.Errorf("rastart failed: the new rolling deployment of '%s' failed to start: %s", oldDeployment.spec.Name, err)
 		}
-
+		go startLivenessCheck(newSpec)
 		// check that the new deployment is healthy
-		timeout := 100*time.Millisecond + newSpec.LivenessProbe.InitialDelayDuration() + time.Duration(newSpec.LivenessProbe.FailureThreshold)*newSpec.LivenessProbe.PeriodDuration()
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
+
+		duration := 10000*time.Millisecond + newSpec.LivenessProbe.InitialDelayDuration() + time.Duration(newSpec.LivenessProbe.FailureThreshold)*newSpec.LivenessProbe.PeriodDuration()
+		timeout := time.After(duration)
+	loop:
 		for {
 			select {
-			case <-ctx.Done():
+			case <-timeout:
+				fmt.Println("DG duration", duration)
 				// don't delete, need to see what went wrong.
-				return fmt.Errorf("rastart failed: the new '%s' deployment isn't healthy: context deadline exceeded", oldDeployment.spec.Name)
+				return fmt.Errorf("rastart failed: the new '%s' deployment isn't healthy: context deadline exceeded", newSpec.Name)
 			default:
 				depStatus, ok := getDeploymentStatus(newSpec.Name)
 				if !ok {
@@ -246,7 +247,7 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 					return fmt.Errorf("rastart failed: new '%s' deployment not found", oldDeployment.spec.Name)
 				}
 				if depStatus == Running {
-					break
+					break loop
 				}
 			}
 		}

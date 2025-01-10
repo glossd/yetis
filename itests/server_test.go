@@ -91,7 +91,7 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 	}
 }
 
-func TestServiceUpdatesWhenDeploymentRestartsOnNewPort(t *testing.T) {
+func TestServiceUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 	go server.Run()
 	t.Cleanup(server.Stop)
 	// let the server start
@@ -173,10 +173,59 @@ func TestServiceUpdatesWhenDeploymentRestartsOnNewPort(t *testing.T) {
 	checkOK()
 }
 
-func TestRestartRollingUpdate(t *testing.T) {
+func TestRestartRollingUpdate_ZeroDowntime(t *testing.T) {
 	go server.Run()
 	t.Cleanup(server.Stop)
-	// todo
+	// let the server start
+	time.Sleep(5 * time.Millisecond)
+
+	errs := client.Apply(pwd(t) + "/specs/main-rolling-update.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+	client.GetServices()
+	forTimeout(time.Second, func() bool {
+		dep, err := client.GetDeployment("go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dep.Status == server.Running.String() {
+			return false
+		}
+		return true
+	})
+	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 50) {
+		t.Fatal("service port should be open")
+	}
+
+	// checking zero downtime
+	for i := 0; i < 5; i++ {
+		go func() {
+			res, err := fetch.Get[string]("http://localhost:27000/hello", fetch.Config{Timeout: time.Second})
+			if err != nil {
+				t.Error(err)
+			}
+			if res != "OK" {
+				t.Errorf("wrong response %v", res)
+			}
+		}()
+	}
+
+	err := client.Restart("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	forTimeout(time.Second, func() bool {
+		dep, err := client.GetDeployment("go-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dep.Status == server.Running.String() {
+			return false
+		}
+		return true
+	})
 }
 
 func pwd(t *testing.T) string {
@@ -185,4 +234,19 @@ func pwd(t *testing.T) string {
 		t.Fatalf("pwd: %s", err)
 	}
 	return fullPath
+}
+
+// return false to break the loop.
+func forTimeout(timeout time.Duration, apply func() bool) {
+	ch := time.After(timeout)
+loop:
+	for {
+		select {
+		case <-ch:
+		default:
+			if !apply() {
+				break loop
+			}
+		}
+	}
 }

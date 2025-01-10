@@ -73,7 +73,8 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 	}()
 }
 
-// it seems timeout happens during TestLivenessRestart on server shutdown.
+// Blocking
+// * it seems timeout happens during TestLivenessRestart on server shutdown.
 func deleteLivenessCheck(name string) bool {
 	v, ok := livenessMap.Load(name)
 	if ok {
