@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/glossd/fetch"
+	"github.com/glossd/yetis/common"
 	"log"
 	"net/http"
 	"os"
@@ -19,23 +20,24 @@ func Run() {
 
 	mux := http.NewServeMux()
 
-	fetch.SetDefaultHandlerConfig(fetch.HandlerConfig{
+	fetch.SetHandlerConfig(fetch.HandlerConfig{
 		ErrorHook: func(err error) {
 			log.Println("fetch.Handler error", err)
 		},
 	})
 	mux.HandleFunc("GET /info", fetch.ToHandlerFunc(Info))
 
-	mux.HandleFunc("GET /deployments", fetch.ToHandlerFunc(ListDeployment))
+	mux.HandleFunc("GET /deployments", fetch.ToHandlerFuncEmptyIn(ListDeployment))
 	mux.HandleFunc("GET /deployments/{name}", fetch.ToHandlerFunc(GetDeployment))
-	mux.HandleFunc("POST /deployments", fetch.ToHandlerFunc(PostDeployment))
-	mux.HandleFunc("DELETE /deployments/{name}", fetch.ToHandlerFunc(DeleteDeployment))
+	mux.HandleFunc("POST /deployments", fetch.ToHandlerFuncEmptyOut(PostDeployment))
+	mux.HandleFunc("DELETE /deployments/{name}", fetch.ToHandlerFuncEmptyOut(DeleteDeployment))
+	mux.HandleFunc("PUT /deployments/{name}/restart", fetch.ToHandlerFuncEmptyOut(RestartDeployment))
 
 	mux.HandleFunc("GET /services", fetch.ToHandlerFunc(ListService))
 	mux.HandleFunc("GET /services/{name}", fetch.ToHandlerFunc(GetService))
 	mux.HandleFunc("POST /services", fetch.ToHandlerFunc(PostService))
 	mux.HandleFunc("DELETE /services/{name}", fetch.ToHandlerFunc(DeleteService))
-	mux.HandleFunc("PUT /services/{name}/restart", fetch.ToHandlerFunc(RestartService))
+	mux.HandleFunc("PUT /services/{name}/port", fetch.ToHandlerFuncEmptyOut(UpdateServiceTargetPort))
 
 	runWithGracefulShutDown(mux)
 }
@@ -86,7 +88,7 @@ func deleteDeploymentsGracefully() {
 	rangeDeployments(func(name string, p deployment) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_, err := DeleteDeployment(fetch.Request[fetch.Empty]{
+		err := DeleteDeployment(fetch.Request[fetch.Empty]{
 			Context:    ctx,
 			PathValues: map[string]string{"name": name},
 		})
@@ -113,4 +115,16 @@ func deleteServicesGracefully() {
 		}
 		return true
 	})
+}
+
+type InfoResponse struct {
+	Version             string
+	NumberOfDeployments int
+}
+
+func Info(_ fetch.Empty) (*InfoResponse, error) {
+	return &InfoResponse{
+		Version:             common.YetisVersion,
+		NumberOfDeployments: deploymentsNum(),
+	}, nil
 }

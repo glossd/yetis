@@ -5,31 +5,64 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
-	"github.com/glossd/yetis/common/unix"
 	"log"
+	"regexp"
 	"slices"
 	"strconv"
 	"time"
 )
 
-func PostDeployment(spec common.DeploymentSpec) (*fetch.Empty, error) {
-	spec, err := setDeploymentPortEnv(spec)
-	if err != nil {
-		return nil, err
+func PostDeployment(spec common.DeploymentSpec) error {
+	if spec.Strategy.Type == common.RollingUpdate {
+		// check the name was upgraded
+		var err error
+		deploymentStore.Range(func(name string, d deployment) bool {
+			if spec.Name == rootNameForRollingUpdate(name) {
+				err = fmt.Errorf("deployment '%s' has a rolling update name: %s", spec.Name, name)
+				return false
+			}
+			return true
+		})
+		if err != nil {
+			return err
+		}
 	}
-	spec = spec.WithDefaults().(common.DeploymentSpec)
+	spec, err := startDeploymentWithEnv(spec, false)
+	if err != nil {
+		return err
+	}
+
+	startLivenessCheck(spec)
+	return nil
+}
+
+func startDeploymentWithEnv(spec common.DeploymentSpec, upsert bool) (common.DeploymentSpec, error) {
+	spec, err := setDeploymentPortEnv(spec.WithDefaults().(common.DeploymentSpec))
+	if err != nil {
+		return spec, err
+	}
 	err = spec.Validate()
 	if err != nil {
-		return nil, fmt.Errorf("deployment %s spec is invalid: %s", spec.Name, err)
+		return spec, fmt.Errorf("deployment %s spec is invalid: %s", spec.Name, err)
 	}
 
-	err = startDeployment(spec)
+	saved := saveDeployment(spec, upsert)
+	if !saved {
+		return spec, fmt.Errorf("deployment '%s' already exists", spec.Name)
+	}
+	pid, logPath, err := launchProcess(spec)
 	if err != nil {
-		return nil, err
+		deleteDeployment(spec.Name)
+		return spec, err
 	}
-
-	runLivenessCheck(spec, 2)
-	return &fetch.Empty{}, nil
+	err = updateDeployment(spec, pid, logPath, false)
+	if err != nil {
+		// For this to happen, delete must finish first before launching,
+		// which is hard to imagine because start is asynchronous and delete is synchronous.
+		log.Printf("Failed to update pid after launching process, pid=%d", pid)
+		return spec, err
+	}
+	return spec, nil
 }
 
 func setDeploymentPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error) {
@@ -75,26 +108,6 @@ func getDeploymentPort(s common.DeploymentSpec) int {
 	return 0
 }
 
-func startDeployment(c common.DeploymentSpec) error {
-	ok := firstSaveDeployment(c)
-	if !ok {
-		return fmt.Errorf("deployment '%s' already exists", c.Name)
-	}
-	pid, logPath, err := launchProcess(c)
-	if err != nil {
-		deleteDeployment(c.Name)
-		return err
-	}
-	err = updateDeployment(c, pid, logPath, false)
-	if err != nil {
-		// For this to happen, delete must finish first before launching,
-		// which is hard to imagine because start is asynchronous and delete is synchronous.
-		log.Printf("Failed to update pid after launching process, pid=%d", pid)
-		return err
-	}
-	return nil
-}
-
 type DeploymentView struct {
 	Name         string
 	Status       string
@@ -105,7 +118,7 @@ type DeploymentView struct {
 	LivenessPort int
 }
 
-func ListDeployment(_ fetch.Empty) ([]DeploymentView, error) {
+func ListDeployment() ([]DeploymentView, error) {
 	var res []DeploymentView
 	rangeDeployments(func(name string, p deployment) {
 		res = append(res, DeploymentView{
@@ -173,38 +186,128 @@ func GetDeployment(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
 	}, nil
 }
 
-func DeleteDeployment(r fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+func DeleteDeployment(r fetch.Request[fetch.Empty]) error {
 	name := r.PathValues["name"]
 	if name == "" {
-		return nil, fmt.Errorf(`name can't be empty`)
+		return fmt.Errorf(`name can't be empty`)
 	}
 
 	d, ok := getDeployment(name)
 	if !ok {
-		return nil, fmt.Errorf(`'%s' doesn't exist'`, name)
+		return fmt.Errorf(`'%s' doesn't exist'`, name)
 	}
 
-	if d.pid != 0 {
-		err := unix.TerminateProcess(r.Context, d.pid)
-		if err != nil {
-			return nil, err
-		}
+	err := terminateProcess(r.Context, d)
+	if err != nil {
+		return err
 	}
-	// todo instead of killing by port, terminate function should terminate all children as well.
-	unix.KillByPort(d.spec.LivenessProbe.TcpSocket.Port)
 
 	deleteDeployment(name)
-	return &fetch.Empty{}, nil
+	deleteLivenessCheck(name)
+	return nil
 }
 
-type InfoResponse struct {
-	Version             string
-	NumberOfDeployments int
+func RestartDeployment(r fetch.Request[fetch.Empty]) error {
+	name := r.PathValues["name"]
+	if name == "" {
+		return fmt.Errorf(`name can't be empty`)
+	}
+
+	oldDeployment, ok := getDeployment(name)
+	if !ok {
+		return fmt.Errorf(`deployment '%s' doesn't exist'`, name)
+	}
+
+	deleteLivenessCheck(name)
+	var newSpec common.DeploymentSpec
+	var err error
+	if oldDeployment.spec.Strategy.Type == common.RollingUpdate {
+		newSpec = oldDeployment.spec
+		newSpec.Name = upgradeNameForRollingUpdate(newSpec.Name)
+		newSpec, err = startDeploymentWithEnv(newSpec, false)
+		if err != nil {
+			return fmt.Errorf("rastart failed: the new rolling deployment of '%s' failed to start: %s", oldDeployment.spec.Name, err)
+		}
+		go startLivenessCheck(newSpec)
+		// check that the new deployment is healthy
+
+		duration := 10000*time.Millisecond + newSpec.LivenessProbe.InitialDelayDuration() + time.Duration(newSpec.LivenessProbe.FailureThreshold)*newSpec.LivenessProbe.PeriodDuration()
+		timeout := time.After(duration)
+	loop:
+		for {
+			select {
+			case <-timeout:
+				fmt.Println("DG duration", duration)
+				// don't delete, need to see what went wrong.
+				return fmt.Errorf("rastart failed: the new '%s' deployment isn't healthy: context deadline exceeded", newSpec.Name)
+			default:
+				depStatus, ok := getDeploymentStatus(newSpec.Name)
+				if !ok {
+					// shouldn't happen
+					return fmt.Errorf("rastart failed: new '%s' deployment not found", oldDeployment.spec.Name)
+				}
+				if depStatus == Running {
+					break loop
+				}
+			}
+		}
+
+		// point the service to the new port
+		err := updateServicePointingToNewPort(r.Context, newSpec)
+		if err != nil {
+			return fmt.Errorf("failed to reload service's target port: %s", err)
+		}
+
+		// delete old deployment
+		err = DeleteDeployment(fetch.Request[fetch.Empty]{Context: r.Context, PathValues: map[string]string{"name": oldDeployment.spec.Name}})
+		if err != nil {
+			return fmt.Errorf("failed to delete old deployment '%s': %s", oldDeployment.spec.Name, err)
+		}
+
+	} else {
+		err := terminateProcess(r.Context, oldDeployment)
+		if err != nil {
+			return fmt.Errorf("failed to terminate deployment's process: %s", err)
+		}
+		newSpec, err = startDeploymentWithEnv(oldDeployment.spec, true)
+		if err != nil {
+			return fmt.Errorf("faield to start deployment: %s", err)
+		}
+
+		err = updateServicePointingToNewPort(r.Context, newSpec)
+		if err != nil {
+			return fmt.Errorf("failed to reload services target port: %s", err)
+		}
+		startLivenessCheck(newSpec)
+	}
+
+	return nil
 }
 
-func Info(_ fetch.Empty) (*InfoResponse, error) {
-	return &InfoResponse{
-		Version:             common.YetisVersion,
-		NumberOfDeployments: deploymentsNum(),
-	}, nil
+var rollingUpdatePattern = regexp.MustCompile(`^.*-(\d+)$`)
+
+func upgradeNameForRollingUpdate(oldName string) string {
+	matchPairs := rollingUpdatePattern.FindStringSubmatchIndex(oldName)
+	if len(matchPairs) < 1 {
+		return oldName + "-1"
+	}
+	idx := matchPairs[len(matchPairs)-2]
+	numStr := oldName[idx:]
+	num, err := strconv.Atoi(numStr)
+	if err != nil {
+		return oldName + "-1"
+	}
+
+	return oldName[:idx] + strconv.Itoa(num+1)
+}
+
+var rollingUpdateRootPattern = regexp.MustCompile(`^(.*)-\d+$`)
+
+func rootNameForRollingUpdate(name string) string {
+	matchPairs := rollingUpdateRootPattern.FindStringSubmatchIndex(name)
+	if len(matchPairs) < 1 {
+		return name
+	}
+	idx := matchPairs[len(matchPairs)-1]
+	return name[:idx]
 }

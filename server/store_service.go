@@ -12,11 +12,21 @@ var serviceStore = common.Map[string, service]{}
 var serviceWriteLock = sync.RWMutex{}
 
 type service struct {
-	pid            int
-	status         ProcessStatus
-	createdAt      time.Time
-	spec           common.ServiceSpec
-	deploymentPort int
+	pid        int
+	status     ProcessStatus
+	createdAt  time.Time
+	spec       common.ServiceSpec
+	targetPort int
+	// port to send the new target port.
+	updatePort int
+}
+
+func (s service) getPid() int {
+	return s.pid
+}
+
+func (s service) getPort() int {
+	return s.spec.Port
 }
 
 func firstSaveService(s common.ServiceSpec) error {
@@ -34,7 +44,7 @@ func firstSaveService(s common.ServiceSpec) error {
 	return nil
 }
 
-func updateService(s common.ServiceSpec, pid int, status ProcessStatus, deploymentPort int) error {
+func updateService(s common.ServiceSpec, pid int, status ProcessStatus, deploymentPort, httpPort int) error {
 	serviceWriteLock.Lock()
 	defer serviceWriteLock.Unlock()
 
@@ -45,7 +55,8 @@ func updateService(s common.ServiceSpec, pid int, status ProcessStatus, deployme
 
 	v.pid = pid
 	v.status = status
-	v.deploymentPort = deploymentPort
+	v.targetPort = deploymentPort
+	v.updatePort = httpPort
 	serviceStore.Store(s.Selector.Name, v)
 	return nil
 }

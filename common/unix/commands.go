@@ -100,7 +100,7 @@ func GetPidByPort(port int) (int, error) {
 	return pid, nil
 }
 
-func KillByPort(port int) error {
+func KillByPort(port int, wait bool) error {
 	pid, err := GetPidByPort(port)
 	if err != nil {
 		return err
@@ -112,6 +112,9 @@ func KillByPort(port int) error {
 	err = proc.Kill()
 	if err != nil {
 		return err
+	}
+	if wait {
+		proc.Wait()
 	}
 	return nil
 }

@@ -5,56 +5,114 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
-	"github.com/glossd/yetis/common/unix"
 	"log"
-	"sync"
 	"time"
 )
 
 // name -> Threshold
-var thresholdMap = sync.Map{}
+var thresholdMap = common.Map[string, Threshold]{}
+var livenessMap = common.Map[string, chan bool]{}
 
 type Threshold struct {
 	SuccessCount int
 	FailureCount int
 }
 
-var tickerMock *chan time.Time
+const defaultRestartLimit = 2
 
-// Non-blocking.
-func runLivenessCheck(c common.DeploymentSpec, restartsLimit int) {
-	time.AfterFunc(c.LivenessProbe.InitialDelayDuration(), func() {
-		var ticker <-chan time.Time
-		if tickerMock != nil {
-			ticker = *tickerMock
-		} else {
-			ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
-		}
-		for ; true; <-ticker { // ;true; - to run instantly before the ticker
-			stop := checkLiveness(c.Name, restartsLimit)
-			if stop {
-				return
-			}
-		}
-	})
+func startLivenessCheck(c common.DeploymentSpec) {
+	runLivenessCheck(c, defaultRestartLimit, nil)
 }
 
-func checkLiveness(deploymentName string, restartsLimit int) bool {
+// Non-blocking.
+func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool) {
+	if stop == nil {
+		stop = make(chan bool)
+	}
+	livenessMap.Store(c.Name, stop)
+	cleanUp := func() {
+		livenessMap.Delete(c.Name)
+		thresholdMap.Delete(c.Name)
+	}
+	go func() {
+		select {
+		case <-stop:
+			cleanUp()
+			return
+		case <-time.After(c.LivenessProbe.InitialDelayDuration()):
+			var ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
+
+			// check instantly
+			if t := heartbeat(c.Name, restartsLimit); t == dead {
+				cleanUp()
+				return
+			}
+			for {
+				select {
+				case <-stop:
+					cleanUp()
+					return
+				case <-ticker:
+					switch heartbeat(c.Name, restartsLimit) {
+					case dead:
+						cleanUp()
+						return
+					case tryAgain:
+						select {
+						case <-stop:
+							cleanUp()
+							return
+						case <-time.After(time.Duration(restartsLimit/2) * time.Minute):
+							runLivenessCheck(c, restartsLimit*2, stop)
+							return
+						}
+					}
+				}
+			}
+		}
+	}()
+}
+
+// Blocking
+// * it seems timeout happens during TestLivenessRestart on server shutdown.
+func deleteLivenessCheck(name string) bool {
+	v, ok := livenessMap.Load(name)
+	if ok {
+		select {
+		case v <- true:
+			close(v)
+			return true
+		case <-time.After(3 * time.Second):
+			log.Printf("delete liveness %s timeout\n", name)
+			return false
+		}
+	}
+	return false
+}
+
+type heartbeatResult int
+
+const (
+	dead = iota
+	tryAgain
+	alive
+)
+
+func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 	dep, ok := getDeployment(deploymentName)
 	if !ok {
 		// release go routine for GC
-		return true
+		return dead
 	}
 	c := dep.spec
 
 	var port = c.LivenessProbe.TcpSocket.Port
 	// Remove 10 milliseconds for everything to process and wait for the new tick.
 	portOpen := isPortOpen(port, c.LivenessProbe.PeriodDuration()-10*time.Millisecond)
-	v, ok := thresholdMap.Load(c.Name)
+	tsh, ok := thresholdMap.Load(c.Name)
 	if !ok {
-		v = Threshold{}
+		tsh = Threshold{}
 	}
-	tsh := v.(Threshold)
 	if portOpen {
 		tsh.FailureCount = 0
 		tsh.SuccessCount++
@@ -68,57 +126,53 @@ func checkLiveness(deploymentName string, restartsLimit int) bool {
 		p, ok := getDeployment(c.Name)
 		if !ok {
 			log.Printf("Deployment '%s' reached failure threshold, but it doesn't exist\n", c.Name)
-			return true
+			return dead
 		}
 		if p.restarts >= restartsLimit {
 			updateDeploymentStatus(c.Name, Failed)
 			thresholdMap.Delete(c.Name)
-			// linear backoff
-			time.AfterFunc(time.Duration(restartsLimit/2)*time.Minute, func() {
-				runLivenessCheck(c, restartsLimit*2)
-			})
-			return true
+			return tryAgain
 		}
 		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", c.Name)
 		updateDeploymentStatus(c.Name, Terminating)
 		ctx, cancelCtx := context.WithTimeout(context.Background(), c.LivenessProbe.PeriodDuration())
-		err := unix.TerminateProcess(ctx, p.pid)
+		defer cancelCtx()
+		err := terminateProcess(ctx, p)
 		if err != nil {
 			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", c.Name, p.pid)
 		} else {
 			log.Printf("terminated '%s' deployment, pid=%d\n", c.Name, p.pid)
 		}
-		// todo instead of killing by port, terminate function should terminate all children as well.
-		unix.KillByPort(c.LivenessProbe.TcpSocket.Port)
 
-		cancelCtx()
 		updateDeploymentStatus(c.Name, Pending)
 
 		c, err := setDeploymentPortEnv(c)
 		if err != nil {
 			log.Printf("failed to set prot env for %s deployment: %s \n", c.Name, err)
-			return false
+			return alive
 		}
 
-		updateDeployment(c, 0, "", false)
+		_ = updateDeployment(c, 0, "", false)
 		pid, logPath, err := launchProcess(c)
 		if err != nil {
 			log.Printf("Liveness failed to restart deployment '%s': %s\n", c.Name, err)
 		}
-		updateDeployment(c, pid, logPath, true)
+		_ = updateDeployment(c, pid, logPath, true)
 		thresholdMap.Delete(c.Name)
-		err = updateServicePointingToNewPort(c)
+		err = updateServicePointingToNewPort(ctx, c)
 		if err != nil {
 			log.Printf("Liveness restarted deployment, but failed to restart service: %s", err)
+		} else {
+			log.Printf("Liveness changed service of '%s' target port to %d\n", c.Name, getDeploymentPort(c))
 		}
 		// wait for initial delay
 		time.Sleep(c.LivenessProbe.InitialDelayDuration())
-		return false
+		return alive
 	}
 	if tsh.SuccessCount >= c.LivenessProbe.SuccessThreshold {
 		updateDeploymentStatus(c.Name, Running)
 	}
-	return false
+	return alive
 }
 
 var isPortOpenMock *bool
@@ -130,8 +184,9 @@ func isPortOpen(port int, dur time.Duration) bool {
 	return common.IsPortOpenTimeout(port, dur)
 }
 
-func updateServicePointingToNewPort(s common.DeploymentSpec) error {
-	_, err := RestartService(fetch.Request[fetch.Empty]{Context: context.Background(), PathValues: map[string]string{"name": s.Name}})
+func updateServicePointingToNewPort(ctx context.Context, s common.DeploymentSpec) error {
+	// todo the tcp proxy must automatically change the deployment port without stopping for RollingUpdate
+	err := UpdateServiceTargetPort(fetch.Request[int]{Context: ctx, Body: getDeploymentPort(s)}.WithPathValue("name", s.Name))
 	if err != nil {
 		if ferr, ok := err.(*fetch.Error); ok && ferr.Status == 404 {
 			return nil

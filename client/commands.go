@@ -130,9 +130,9 @@ func preventSignalInterrupt() {
 	}()
 }
 
-func DescribeDeployment(name string) {
+func DescribeDeployment(name string) (server.GetResponse, error) {
 	versionsWarning()
-	r, err := fetch.Get[server.GetResponse]("/deployments/" + name)
+	r, err := GetDeployment(name)
 	if err != nil {
 		fmt.Println(err)
 	} else {
@@ -149,6 +149,11 @@ func DescribeDeployment(name string) {
 		buf.Write(c)
 		fmt.Println(buf.String())
 	}
+	return r, nil
+}
+
+func GetDeployment(name string) (server.GetResponse, error) {
+	return fetch.Get[server.GetResponse]("/deployments/" + name)
 }
 
 func DescribeService(selectorName string) {
@@ -232,6 +237,16 @@ func Logs(name string, stream bool) {
 			fmt.Println("failed to print log file", err)
 		}
 	}
+}
+
+func Restart(name string) error {
+	_, err := fetch.Put[fetch.Empty]("/deployments/"+name+"/restart", nil)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Printf("Successfully restarted '%s' deployment\n", name)
+	}
+	return err
 }
 
 func IsServerRunning() bool {

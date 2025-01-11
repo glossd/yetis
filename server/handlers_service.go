@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
-	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/proxy"
 	"log"
+	"path/filepath"
 	"time"
 )
 
@@ -23,7 +23,7 @@ func ListService(_ fetch.Empty) ([]ServiceView, error) {
 		res = append(res, ServiceView{
 			Pid:            v.pid,
 			Port:           v.spec.Port,
-			DeploymentPort: v.deploymentPort,
+			DeploymentPort: v.targetPort,
 			SelectorName:   v.spec.Selector.Name,
 		})
 		return true
@@ -47,7 +47,7 @@ func GetService(in fetch.Request[fetch.Empty]) (*GetServiceResponse, error) {
 	return &GetServiceResponse{
 		Pid:            ser.pid,
 		Port:           ser.spec.Port,
-		DeploymentPort: ser.deploymentPort,
+		DeploymentPort: ser.targetPort,
 		SelectorName:   ser.spec.Selector.Name,
 	}, nil
 }
@@ -64,12 +64,17 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 		return nil, err
 	}
 	deploymentPort := getDeploymentPort(dep.spec)
-	pid, err := proxy.Exec(spec.Port, deploymentPort)
+	logdir := "/tmp"
+	if spec.Logdir != "" {
+		logdir = spec.Logdir
+	}
+	logpath := filepath.Join(logdir, fmt.Sprintf("service-to-%s.log", spec.Selector.Name))
+	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, logpath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start service: %s", err)
 	}
-	log.Printf("launched service for %s deployment on port %d to port %d", spec.Selector.Name, spec.Port, deploymentPort)
-	err = updateService(spec, pid, Pending, deploymentPort)
+	log.Printf("launched service for %s deployment on port %d to port %d with updatePort %d", spec.Selector.Name, spec.Port, deploymentPort, httpPort)
+	err = updateService(spec, pid, Pending, deploymentPort, httpPort)
 	if err != nil {
 		return nil, err
 	}
@@ -84,34 +89,30 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	if !ok {
 		return nil, serviceNotFound(name)
 	}
-	if ser.pid > 0 {
-		err := unix.TerminateProcess(in.Context, ser.pid)
-		if err != nil {
-			return nil, fmt.Errorf("service for '%s' failed to terminate: %s", name, err)
-		}
+	err := terminateProcess(in.Context, ser)
+	if err != nil {
+		return nil, fmt.Errorf("service for '%s' failed to terminate: %s", name, err)
 	}
-	// todo instead of killing by port, terminate function should terminate all children as well.
-	unix.KillByPort(ser.spec.Port)
 	serviceStore.Delete(name)
 	return nil, nil
 }
 
-func RestartService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
+func UpdateServiceTargetPort(in fetch.Request[int]) error {
 	name := in.PathValues["name"]
 	serv, ok := serviceStore.Load(name)
 	if !ok {
-		return nil, serviceNotFound(name)
-	}
-	_, err := DeleteService(in)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete service: %s", err)
+		return serviceNotFound(name)
 	}
 
-	_, err = PostService(serv.spec)
+	newTargetPort := in.Body
+	_, err := fetch.Post[fetch.Empty](fmt.Sprintf("http://localhost:%d/update", serv.updatePort), newTargetPort)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create service: %s", err)
+		return fmt.Errorf("failed to update port: %s", err)
 	}
-	return nil, nil
+	serv.targetPort = newTargetPort
+	serviceStore.Store(name, serv)
+
+	return nil
 }
 
 func serviceNotFound(name string) *fetch.Error {

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
@@ -27,6 +28,7 @@ func launchProcess(c common.DeploymentSpec) (pid int, logPath string, err error)
 		if err != nil {
 			return 0, "", fmt.Errorf("failed to create log file for '%s': %s", c.Name, err)
 		}
+		// todo close the file
 		pid, err = launchProcessWithOut(c, file, false)
 		return pid, fullPath, err
 	}
@@ -118,4 +120,16 @@ func getLogCounter(name, logDir string) int {
 		}
 	}
 	return highest
+}
+
+func terminateProcess(ctx context.Context, r resource) error {
+	if r.getPid() != 0 {
+		err := unix.TerminateProcess(ctx, r.getPid())
+		if err != nil {
+			return err
+		}
+	}
+	// todo instead of killing by port, terminate function should terminate all children as well.
+	unix.KillByPort(r.getPort(), true)
+	return nil
 }
