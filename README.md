@@ -41,10 +41,11 @@ Server Commands:
 	info                    print server status
 Resources Commands:
 	apply -f FILENAME       apply a configuration from yaml file.
-	get [-w] KIND           print a list of the managed resources.
+	get [-w] KIND           print a list the managed resources.
 	logs [-f] NAME          print the logs of the deployment with NAME
-	describe KIND NAME      Print a detailed description of the selected resource
+	describe KIND NAME      print a detailed description of the selected resource
 	delete KIND NAME        delete the resource, terminating its process
+	restart NAME            restart the deployment according to its strategy type 
 	help                    print the list of the commands
 ```
 

@@ -127,7 +127,12 @@ func main() {
 		path := os.Args[3]
 		client.Apply(path)
 	case "restart":
-		
+		if len(os.Args) < 3 {
+			needName()
+			return
+		}
+
+		client.Restart(os.Args[2])
 	case "help":
 		printHelp()
 	default:
@@ -161,8 +166,9 @@ Resources Commands:
 	apply -f FILENAME       apply a configuration from yaml file.
 	get [-w] KIND           print a list the managed resources.
 	logs [-f] NAME          print the logs of the deployment with NAME
-	describe KIND NAME      Print a detailed description of the selected resource
+	describe KIND NAME      print a detailed description of the selected resource
 	delete KIND NAME        delete the resource, terminating its process
+	restart NAME            restart the deployment according to its strategy type 
 	help                    print the list of the commands
 `)
 }
