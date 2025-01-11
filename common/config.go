@@ -36,6 +36,7 @@ type Spec interface {
 
 type ServiceSpec struct {
 	Port     int
+	Logdir   string
 	Selector Selector
 }
 

@@ -8,7 +8,7 @@ Your VPS doesn't support Docker containers, but you would still like some `k8s` 
 1. Kubernetes-like declarative configuration.
 2. Self-healing. Automatically restarts failed processes. Kills and recreates unresponsive processes.
 3. Log management. It saves the standard output into iterative log files.
-4. Zero downtime deployment. Achieved with Service
+4. Zero downtime deployment. Achieved through `Service` and `RollingUpdate` strategy.
 
 ## Installing
 ```shell
@@ -56,8 +56,8 @@ spec:
   name: frontend
   cmd: npm start
   workdir: /home/user/myfront
-  strategy: # WIP
-    type: RollingUpdate
+  strategy:
+    type: RollingUpdate # For zero downtime
   env:
     - name: APP_PORT # If you configure a Service, your app shouldn't have a static port.
       value: $YETIS_PORT
@@ -86,6 +86,7 @@ Service is a proxy for the deployment with a static port. It allows RollingUpdat
 kind: Service
 spec:
   port: 4567 # The port for Service to run on
+  logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to /tmp'.
   selector:
     name: name-of-deployment # Name of the deployment to proxy to.
 ```
@@ -99,8 +100,8 @@ spec:
   cmd: java HelloWorld
   workdir: /home/user/myproject # Directory where command is executed. Defaults to the path in 'apply -f'. 
   logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to the path in 'apply -f'.
-  strategy: # WIP
-    type: Recreate # Recreate or RollingUpdate. Defaults to Recreate. RollingUpdate should be specified only with Service 
+  strategy:
+    type: Recreate # Recreate or RollingUpdate. Defaults to Recreate. 
   livenessProbe: # Checks if the command is alive and if not then restarts it
     tcpSocket:
       port: 8080 # Should be specified if Service is not configured. Defaults to $YETIS_PORT 
@@ -117,13 +118,12 @@ spec:
       value: $YETIS_PORT # pass the value of the environment variable to another one.
 ```
 
-
 ### Liveness Probe
 Checks if the process is alive and ready.  Yetis relies on this configuration to restart the process. Plus if Service is configured, then forward traffic to the Deployment. 
 For now, the probe only supports tcpSocket. It also acts as Readiness and StartUp Probes. If you need anything, PRs are welcome.
 
 ### Deployment Strategies
-Zero downtime is achieved with `RollingUpdate` strategy. It will spawn a new deployment, check if it's [healthy](#liveness-probe),
-then direct traffic to the new instance, and only then will terminate the old instance.  
-If you specify the `Recreate` strategy, Yetis will wait for the termination of the old instance before starting a new one.
+Zero downtime is achieved with `RollingUpdate` strategy and `restart` command. Your deployment must start on `$YETIS_PORT` and have a `Service` pointing at it. `restart` command will spawn a new deployment, check if it's [healthy](#liveness-probe),
+then direct traffic to the new instance, and only then will terminate the old instance. The new deployment will have the name with an index i.e. frontend-1, frontend-2 and so on.
+If deployment has `Recreate` strategy, Yetis will wait for the termination of the old instance before starting a new one with the same name.
 It's the same as in [Kubernetes](https://medium.com/@muppedaanvesh/rolling-update-recreate-deployment-strategies-in-kubernetes-️-327b59f27202)

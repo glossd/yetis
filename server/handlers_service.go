@@ -6,6 +6,7 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/proxy"
 	"log"
+	"path/filepath"
 	"time"
 )
 
@@ -63,8 +64,12 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 		return nil, err
 	}
 	deploymentPort := getDeploymentPort(dep.spec)
-	// todo add logs
-	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, "/tmp/exec.log")
+	logdir := "/tmp"
+	if spec.Logdir != "" {
+		logdir = spec.Logdir
+	}
+	logpath := filepath.Join(logdir, fmt.Sprintf("service-to-%s.log", spec.Selector.Name))
+	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, logpath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start service: %s", err)
 	}
