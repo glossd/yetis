@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+// flaky?
+// server_test.go:40: should have restarted: expected Pending status, got Terminating, restarts 0
 func TestLivenessRestart(t *testing.T) {
 	go server.Run()
 	t.Cleanup(server.Stop)
