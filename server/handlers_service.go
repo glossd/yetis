@@ -59,14 +59,17 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	if common.IsPortOpenTimeout(spec.Port, 100*time.Millisecond) {
 		return nil, fmt.Errorf("port %d is already occupied", spec.Port)
 	}
+	if spec.Logdir != "" {
+		spec.Logdir = "/tmp"
+	}
+	if spec.LivenessProbe.InitialDelaySeconds == 0 {
+		spec.LivenessProbe.InitialDelaySeconds = 5
+	}
 	err := firstSaveService(spec)
 	if err != nil {
 		return nil, err
 	}
 	deploymentPort := getDeploymentPort(dep.spec)
-	if spec.Logdir != "" {
-		spec.Logdir = "/tmp"
-	}
 	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, getServiceLogPath(spec))
 	if err != nil {
 		return nil, fmt.Errorf("failed to start service: %s", err)
@@ -78,7 +81,7 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	}
 
 	// liveness check
-	time.AfterFunc(5*time.Second, func() {
+	time.AfterFunc(spec.LivenessProbe.InitialDelayDuration(), func() {
 		startLivenessForService(spec)
 	})
 
@@ -98,6 +101,7 @@ func startLivenessForService(spec common.ServiceSpec) {
 		}
 		if common.IsPortOpen(ser.spec.Port) {
 			updateServiceStatus(name, Running)
+			time.Sleep(100 * time.Millisecond)
 		} else {
 			updateServiceStatus(name, Failed)
 			// try to restart it
@@ -118,6 +122,7 @@ func startLivenessForService(spec common.ServiceSpec) {
 				log.Printf("Failed to update service for '%s': %s\n", name, err)
 				break
 			}
+			log.Printf("Restarted failed service for %s\n", name)
 			// another liveness check
 			time.AfterFunc(5*time.Second, func() {
 				startLivenessForService(spec)
