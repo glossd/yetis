@@ -53,18 +53,26 @@ func TestLivenessRestart(t *testing.T) {
 	}
 
 	// initDelay 0.1 seconds
-	checkSR("before first healthcheck", server.Pending, 0)
+	checkSR("before first heartbeat", server.Pending, 0)
 	time.Sleep(125 * time.Millisecond)
-	checkSR("first healthcheck ok", server.Running, 0)
+	checkSR("after first heartbeat", server.Running, 0)
 
 	err := unix.KillByPort(27000, true)
 	if err != nil {
 		t.Fatalf("failed to kill: %s", err)
 	}
-	time.Sleep(100 * time.Millisecond)
-	checkSR("second healthcheck ok", server.Running, 0)
-	time.Sleep(125 * time.Millisecond) // 25 millies for it to restart
-	checkSR("should have restarted", server.Pending, 1)
+	time.Sleep(95 * time.Millisecond)
+	checkSR("after second heartbeat", server.Running, 0)
+
+	time.Sleep(150 * time.Millisecond) // 50 millies for it to restart
+	check(func(r server.GetResponse) {
+		if r.Restarts != 1 {
+			t.Fatal("expected a restart")
+		}
+	})
+	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 20) {
+		t.Fatal("deployment port should be open after restart")
+	}
 }
 
 func TestShutdown_DeleteDeployments(t *testing.T) {
