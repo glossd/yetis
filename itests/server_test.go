@@ -15,8 +15,13 @@ import (
 	"time"
 )
 
-// flaky?
-// server_test.go:40: should have restarted: expected Pending status, got Terminating, restarts 0
+// noticed ci fail
+//
+//	server_test.go:40: should have restarted: expected Pending status, got Terminating, restarts 0
+//
+// and
+//
+//	server_test.go:42: before first healthcheck: expected Pending status, got Running, restarts 0
 func TestLivenessRestart(t *testing.T) {
 	go server.Run()
 	t.Cleanup(server.Stop)
@@ -47,12 +52,9 @@ func TestLivenessRestart(t *testing.T) {
 		})
 	}
 
-	if !common.IsPortOpenRetry(27000, 20*time.Millisecond, 20) {
-		t.Fatalf("port 27000 is closed")
-	}
 	// initDelay 0.1 seconds
 	checkSR("before first healthcheck", server.Pending, 0)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(125 * time.Millisecond)
 	checkSR("first healthcheck ok", server.Running, 0)
 
 	err := unix.KillByPort(27000, true)

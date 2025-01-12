@@ -12,7 +12,7 @@ import (
 )
 
 func TestIsProcessAlive(t *testing.T) {
-	cmd := exec.Command("sleep", "0.02")
+	cmd := exec.Command("sleep", "0.03")
 	err := cmd.Start()
 	if err != nil {
 		t.Fatalf("error launching process: %s", err)
@@ -26,7 +26,7 @@ func TestIsProcessAlive(t *testing.T) {
 		t.Fatal("pid shouldn't exist") // probs:)
 	}
 
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
 	if IsProcessAlive(pid) {
 		t.Fatal("sleep should have terminated")
 	}
@@ -80,7 +80,6 @@ func TestGetPidByPort(t *testing.T) {
 	}
 }
 
-// fixme I'm flaky!
 func TestCatStream(t *testing.T) {
 	assert(t, os.Truncate("./cat.txt", 0), nil)
 	buf := bytes.NewBuffer([]byte{})
