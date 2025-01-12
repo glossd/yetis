@@ -35,9 +35,10 @@ type Spec interface {
 }
 
 type ServiceSpec struct {
-	Port     int
-	Logdir   string
-	Selector Selector
+	Port          int
+	Logdir        string
+	LivenessProbe Probe
+	Selector      Selector
 }
 
 func (ss ServiceSpec) Validate() error {

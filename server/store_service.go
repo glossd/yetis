@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"github.com/glossd/yetis/common"
+	"log"
 	"sync"
 	"time"
 )
@@ -59,4 +60,16 @@ func updateService(s common.ServiceSpec, pid int, status ProcessStatus, deployme
 	v.updatePort = httpPort
 	serviceStore.Store(s.Selector.Name, v)
 	return nil
+}
+
+func updateServiceStatus(name string, status ProcessStatus) {
+	serviceWriteLock.Lock()
+	defer serviceWriteLock.Unlock()
+	v, ok := deploymentStore.Load(name)
+	if !ok {
+		log.Printf("tried to update status but deployment '%s' doesn't exist\n", name)
+		return
+	}
+	v.status = status
+	deploymentStore.Store(name, v)
 }

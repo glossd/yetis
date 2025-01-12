@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+// flaky?
+// server_test.go:40: should have restarted: expected Pending status, got Terminating, restarts 0
 func TestLivenessRestart(t *testing.T) {
 	go server.Run()
 	t.Cleanup(server.Stop)
@@ -226,6 +228,31 @@ func TestRestartRollingUpdate_ZeroDowntime(t *testing.T) {
 		}
 		return true
 	})
+}
+
+func TestServiceLivenessRestart(t *testing.T) {
+	go server.Run()
+	t.Cleanup(server.Stop)
+	// let the server start
+	time.Sleep(5 * time.Millisecond)
+
+	errs := client.Apply(pwd(t) + "/specs/main-with-service.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+
+	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 20) {
+		t.Fatal("service port should be open")
+	}
+
+	err := unix.KillByPort(27000, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 20) {
+		t.Fatal("server should be restarted")
+	}
 }
 
 func pwd(t *testing.T) string {

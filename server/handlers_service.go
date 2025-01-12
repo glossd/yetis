@@ -57,19 +57,20 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 		return nil, fmt.Errorf("selected deployment '%s' doesn't exist", spec.Selector.Name)
 	}
 	if common.IsPortOpenTimeout(spec.Port, 100*time.Millisecond) {
-		return nil, fmt.Errorf("service port %d already occupied", spec.Port)
+		return nil, fmt.Errorf("port %d is already occupied", spec.Port)
+	}
+	if spec.Logdir != "" {
+		spec.Logdir = "/tmp"
+	}
+	if spec.LivenessProbe.InitialDelaySeconds == 0 {
+		spec.LivenessProbe.InitialDelaySeconds = 5
 	}
 	err := firstSaveService(spec)
 	if err != nil {
 		return nil, err
 	}
 	deploymentPort := getDeploymentPort(dep.spec)
-	logdir := "/tmp"
-	if spec.Logdir != "" {
-		logdir = spec.Logdir
-	}
-	logpath := filepath.Join(logdir, fmt.Sprintf("service-to-%s.log", spec.Selector.Name))
-	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, logpath)
+	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, getServiceLogPath(spec))
 	if err != nil {
 		return nil, fmt.Errorf("failed to start service: %s", err)
 	}
@@ -79,10 +80,58 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 		return nil, err
 	}
 
-	// todo runLiveness()
+	// liveness check
+	time.AfterFunc(spec.LivenessProbe.InitialDelayDuration(), func() {
+		startLivenessForService(spec)
+	})
 
 	return nil, nil
 }
+
+func getServiceLogPath(spec common.ServiceSpec) string {
+	return filepath.Join(spec.Logdir, fmt.Sprintf("service-to-%s.log", spec.Selector.Name))
+}
+
+func startLivenessForService(spec common.ServiceSpec) {
+	name := spec.Selector.Name
+	for {
+		ser, ok := serviceStore.Load(name)
+		if !ok {
+			break
+		}
+		if common.IsPortOpen(ser.spec.Port) {
+			updateServiceStatus(name, Running)
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			updateServiceStatus(name, Failed)
+			// try to restart it
+			dep, ok := getDeployment(name)
+			if !ok {
+				// what to do?
+				continue
+			}
+			deploymentPort := getDeploymentPort(dep.spec)
+			pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, getServiceLogPath(ser.spec))
+			if err != nil {
+				log.Printf("Failed to restart service for '%s': %s\n", name, err)
+				break
+			}
+			err = updateService(spec, pid, Pending, deploymentPort, httpPort)
+			if err != nil {
+				// shouldn't happen
+				log.Printf("Failed to update service for '%s': %s\n", name, err)
+				break
+			}
+			log.Printf("Restarted failed service for %s\n", name)
+			// another liveness check
+			time.AfterFunc(5*time.Second, func() {
+				startLivenessForService(spec)
+			})
+			break
+		}
+	}
+}
+
 func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	name := in.PathValues["name"]
 	ser, ok := serviceStore.Load(name)
