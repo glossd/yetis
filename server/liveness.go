@@ -159,7 +159,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		}
 		_ = updateDeployment(c, pid, logPath, true)
 		thresholdMap.Delete(c.Name)
-		err = updateServicePointingToNewPort(ctx, c)
+		err = updateServiceTargetPortIfExists(ctx, c)
 		if err != nil {
 			log.Printf("Liveness restarted deployment, but failed to restart service: %s", err)
 		} else {
@@ -184,7 +184,7 @@ func isPortOpen(port int, dur time.Duration) bool {
 	return common.IsPortOpenTimeout(port, dur)
 }
 
-func updateServicePointingToNewPort(ctx context.Context, s common.DeploymentSpec) error {
+func updateServiceTargetPortIfExists(ctx context.Context, s common.DeploymentSpec) error {
 	// todo the tcp proxy must automatically change the deployment port without stopping for RollingUpdate
 	err := UpdateServiceTargetPort(fetch.Request[int]{Context: ctx, Body: getDeploymentPort(s)}.WithPathValue("name", s.Name))
 	if err != nil {

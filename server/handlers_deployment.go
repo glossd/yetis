@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-func PostDeployment(spec common.DeploymentSpec) error {
+func PostDeployment(req fetch.Request[common.DeploymentSpec]) error {
+	spec := req.Body
 	if spec.Strategy.Type == common.RollingUpdate {
 		// check the name was upgraded
 		var err error
@@ -30,6 +31,11 @@ func PostDeployment(spec common.DeploymentSpec) error {
 	spec, err := startDeploymentWithEnv(spec, false)
 	if err != nil {
 		return err
+	}
+
+	err = updateServiceTargetPortIfExists(req.Context, spec)
+	if err != nil {
+		log.Println("Failed to update service target port:", err)
 	}
 
 	startLivenessCheck(spec)
@@ -253,7 +259,7 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 		}
 
 		// point the service to the new port
-		err := updateServicePointingToNewPort(r.Context, newSpec)
+		err := updateServiceTargetPortIfExists(r.Context, newSpec)
 		if err != nil {
 			return fmt.Errorf("failed to reload service's target port: %s", err)
 		}
@@ -274,7 +280,7 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 			return fmt.Errorf("faield to start deployment: %s", err)
 		}
 
-		err = updateServicePointingToNewPort(r.Context, newSpec)
+		err = updateServiceTargetPortIfExists(r.Context, newSpec)
 		if err != nil {
 			return fmt.Errorf("failed to reload services target port: %s", err)
 		}
