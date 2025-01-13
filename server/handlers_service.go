@@ -138,6 +138,7 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	if !ok {
 		return nil, serviceNotFound(name)
 	}
+	// todo not being terminated in PG
 	err := terminateProcess(in.Context, ser)
 	if err != nil {
 		return nil, fmt.Errorf("service for '%s' failed to terminate: %s", name, err)

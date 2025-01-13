@@ -61,16 +61,16 @@ func main() {
 				client.WatchGetDeployments()
 			}
 			switch args[3] {
-			case "deployment":
+			case "deployment", "d":
 				client.WatchGetDeployments()
-			case "service":
+			case "service", "s":
 				client.WatchGetServices()
 			default:
 				availableKinds()
 			}
-		case "deployment":
+		case "deployment", "d":
 			client.GetDeployments()
-		case "service":
+		case "service", "s":
 			client.GetServices()
 		default:
 			printFlags("get [-flags] [kind]", "-w  watches for new updates")
@@ -98,9 +98,9 @@ func main() {
 			return
 		}
 		switch os.Args[2] {
-		case "service":
+		case "service", "s":
 			client.DescribeService(os.Args[3])
-		case "deployment":
+		case "deployment", "d":
 			client.DescribeDeployment(os.Args[3])
 		default:
 			availableKinds()
@@ -111,9 +111,9 @@ func main() {
 			return
 		}
 		switch os.Args[2] {
-		case "service":
+		case "service", "s":
 			client.DeleteService(os.Args[3])
-		case "deployment":
+		case "deployment", "d":
 			client.DeleteDeployment(os.Args[3])
 		default:
 			availableKinds()
