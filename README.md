@@ -12,7 +12,7 @@ Your VPS doesn't support Docker containers, but you would still like some `k8s` 
 
 ## Installing
 ```shell
-sudo wget -P /usr/local/bin https://github.com/glossd/yetis/raw/refs/heads/master/build/yetis && chmod +x /usr/local/bin/yetis 
+sudo wget -O -P /usr/local/bin https://github.com/glossd/yetis/raw/refs/heads/master/build/yetis && chmod +x /usr/local/bin/yetis 
 ```
 ## Commands
 *You don't need to be `root`.
@@ -29,7 +29,7 @@ yetis apply -f config.yaml
 [Configuration](#full-configuration)  
 
 #### List deployments
-`yetis list` will show the list of the processes.    
+`yetis get` will show the list of the processes.    
 Add flag `-w` to watch the updates
 ![](.github/yetis-list-w.gif)
 
@@ -50,7 +50,20 @@ Resources Commands:
 ```
 
 ## Configuration examples
-### Deployment with Service
+### Deployment
+A simple process to watch over and restart if port becomes unavailable
+```yaml
+kind: Deployment
+spec:
+  name: frontend
+  cmd: npm start
+  workdir: /home/user/myfront
+  livenessProbe:
+    tcpSocket:
+      port: 3000
+```
+### Deployment with Zero downtime
+Service will on static port 2345 and proxy all requests to `frontend` Deployment which must have a dynamic port.
 ```yaml
 kind: Deployment
 spec:
@@ -68,28 +81,6 @@ spec:
   port: 2345
   selector:
     name: frontend
-```
-### Deployment without Service 
-```yaml
-kind: Deployment
-spec:
-  name: frontend
-  cmd: npm start
-  workdir: /home/user/myfront
-  livenessProbe:
-    tcpSocket:
-      port: 3000
-```
-
-## Service configuration
-Service is a proxy for the deployment with a static port. It allows RollingUpdate and zero deployment.  
-```yaml
-kind: Service
-spec:
-  port: 4567 # The port for Service to run on
-  logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to /tmp'.
-  selector:
-    name: name-of-deployment # Name of the deployment to proxy to.
 ```
 
 ## Deployment configuration
@@ -117,6 +108,17 @@ spec:
       value: mellon
     - name: MY_PORT
       value: $YETIS_PORT # pass the value of the environment variable to another one.
+```
+
+## Service configuration
+Service is a proxy for the deployment with a static port. It allows RollingUpdate and zero deployment.
+```yaml
+kind: Service
+spec:
+  port: 4567 # The port for Service to run on
+  logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to /tmp'.
+  selector:
+    name: name-of-deployment # Name of the deployment to proxy to.
 ```
 
 ### Liveness Probe

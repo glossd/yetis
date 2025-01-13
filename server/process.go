@@ -23,7 +23,7 @@ func launchProcess(c common.DeploymentSpec) (pid int, logPath string, err error)
 		return pid, "stdout", err
 	} else {
 		logName := c.Name + "-" + strconv.Itoa(getLogCounter(c.Name, c.Logdir)+1) + ".log"
-		fullPath := c.Logdir + "/" + logName
+		fullPath := filepath.Join(c.Logdir, logName)
 		file, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0750)
 		if err != nil {
 			return 0, "", fmt.Errorf("failed to create log file for '%s': %s", c.Name, err)
@@ -63,6 +63,7 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 	cmd := exec.Command(shCmd[0], shCmd[1:]...)
 	if w != nil {
 		cmd.Stdout = w
+		cmd.Stderr = w
 	}
 	cmd.Dir = c.Workdir
 	if wait {

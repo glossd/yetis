@@ -79,7 +79,6 @@ func Start(listenPort, targetPort, httpPort int) {
 			fmt.Println("Accept error:", err)
 			return
 		}
-		fmt.Println("Accept", c.LocalAddr(), c.RemoteAddr())
 		go proxyTo(c, int(targetPortVar.Load()))
 	}
 }

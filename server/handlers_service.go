@@ -12,6 +12,7 @@ import (
 
 type ServiceView struct {
 	Pid            int
+	Status         string
 	Port           int
 	SelectorName   string
 	DeploymentPort int
@@ -22,6 +23,7 @@ func ListService(_ fetch.Empty) ([]ServiceView, error) {
 	serviceStore.Range(func(k string, v service) bool {
 		res = append(res, ServiceView{
 			Pid:            v.pid,
+			Status:         v.status.String(),
 			Port:           v.spec.Port,
 			DeploymentPort: v.targetPort,
 			SelectorName:   v.spec.Selector.Name,
@@ -32,10 +34,7 @@ func ListService(_ fetch.Empty) ([]ServiceView, error) {
 }
 
 type GetServiceResponse struct {
-	Pid            int
-	Port           int
-	SelectorName   string
-	DeploymentPort int
+	ServiceView
 }
 
 func GetService(in fetch.Request[fetch.Empty]) (*GetServiceResponse, error) {
@@ -44,12 +43,13 @@ func GetService(in fetch.Request[fetch.Empty]) (*GetServiceResponse, error) {
 	if !ok {
 		return nil, serviceNotFound(name)
 	}
-	return &GetServiceResponse{
+	return &GetServiceResponse{ServiceView: ServiceView{
 		Pid:            ser.pid,
+		Status:         ser.status.String(),
 		Port:           ser.spec.Port,
 		DeploymentPort: ser.targetPort,
 		SelectorName:   ser.spec.Selector.Name,
-	}, nil
+	}}, nil
 }
 func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	dep, ok := getDeployment(spec.Selector.Name)
@@ -59,7 +59,7 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	if common.IsPortOpenTimeout(spec.Port, 100*time.Millisecond) {
 		return nil, fmt.Errorf("port %d is already occupied", spec.Port)
 	}
-	if spec.Logdir != "" {
+	if spec.Logdir == "" {
 		spec.Logdir = "/tmp"
 	}
 	if spec.LivenessProbe.InitialDelaySeconds == 0 {
