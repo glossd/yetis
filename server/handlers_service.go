@@ -69,7 +69,7 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	if err != nil {
 		return nil, err
 	}
-	deploymentPort := getDeploymentPort(dep.spec)
+	deploymentPort := dep.spec.YetisPort()
 	pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, getServiceLogPath(spec))
 	if err != nil {
 		return nil, fmt.Errorf("failed to start service: %s", err)
@@ -110,7 +110,7 @@ func startLivenessForService(spec common.ServiceSpec) {
 				// what to do?
 				continue
 			}
-			deploymentPort := getDeploymentPort(dep.spec)
+			deploymentPort := dep.spec.YetisPort()
 			pid, httpPort, err := proxy.Exec(spec.Port, deploymentPort, getServiceLogPath(ser.spec))
 			if err != nil {
 				log.Printf("Failed to restart service for '%s': %s\n", name, err)

@@ -33,7 +33,7 @@ func PostDeployment(req fetch.Request[common.DeploymentSpec]) error {
 		return err
 	}
 
-	err = updateServiceTargetPortIfExists(req.Context, spec)
+	_, err = updateServiceTargetPortIfExists(req.Context, spec)
 	if err != nil {
 		log.Println("Failed to update service target port:", err)
 	}
@@ -43,7 +43,7 @@ func PostDeployment(req fetch.Request[common.DeploymentSpec]) error {
 }
 
 func startDeploymentWithEnv(spec common.DeploymentSpec, upsert bool) (common.DeploymentSpec, error) {
-	spec, err := setDeploymentPortEnv(spec.WithDefaults().(common.DeploymentSpec))
+	spec, err := setYetisPortEnv(spec.WithDefaults().(common.DeploymentSpec))
 	if err != nil {
 		return spec, err
 	}
@@ -71,47 +71,35 @@ func startDeploymentWithEnv(spec common.DeploymentSpec, upsert bool) (common.Dep
 	return spec, nil
 }
 
-func setDeploymentPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error) {
-	deploymentPort, err := common.GetFreePort()
+func setYetisPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error) {
+	const yetisPortEnv = "YETIS_PORT"
+	freePort, err := common.GetFreePort()
 	if err != nil {
 		return common.DeploymentSpec{}, fmt.Errorf("failed to assigned port: %s", err)
 	}
 	if c.LivenessProbe.TcpSocket.Port == 0 || isYetisPortUsed(c) {
-		c.LivenessProbe.TcpSocket.Port = deploymentPort
+		c.LivenessProbe.TcpSocket.Port = freePort
 	}
 
 	var newEnvs []common.EnvVar
 	for _, envVar := range c.Env {
-		if envVar.Name == "YETIS_PORT" {
-			// remove old YETIS_PORT env
+		if envVar.Name == yetisPortEnv {
+			// remove old env
 			continue
 		}
-		if envVar.Value == "$YETIS_PORT" {
-			newEnvs = append(newEnvs, common.EnvVar{Name: envVar.Name, Value: strconv.Itoa(deploymentPort)})
+		if envVar.Value == "$"+yetisPortEnv {
+			newEnvs = append(newEnvs, common.EnvVar{Name: envVar.Name, Value: strconv.Itoa(freePort)})
 		} else {
 			newEnvs = append(newEnvs, envVar)
 		}
 	}
-	newEnvs = append(newEnvs, common.EnvVar{Name: "YETIS_PORT", Value: strconv.Itoa(deploymentPort)})
+	newEnvs = append(newEnvs, common.EnvVar{Name: yetisPortEnv, Value: strconv.Itoa(freePort)})
 	c.Env = newEnvs
 	return c, nil
 }
 
 func isYetisPortUsed(c common.DeploymentSpec) bool {
-	return getDeploymentPort(c) == c.LivenessProbe.TcpSocket.Port
-}
-
-func getDeploymentPort(s common.DeploymentSpec) int {
-	for _, envVar := range s.Env {
-		if envVar.Name == "YETIS_PORT" {
-			port, err := strconv.Atoi(envVar.Value)
-			if err != nil {
-				return 0
-			}
-			return port
-		}
-	}
-	return 0
+	return c.YetisPort() == c.LivenessProbe.TcpSocket.Port
 }
 
 type DeploymentView struct {
@@ -259,7 +247,7 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 		}
 
 		// point the service to the new port
-		err := updateServiceTargetPortIfExists(r.Context, newSpec)
+		_, err := updateServiceTargetPortIfExists(r.Context, newSpec)
 		if err != nil {
 			return fmt.Errorf("failed to reload service's target port: %s", err)
 		}
@@ -280,7 +268,7 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 			return fmt.Errorf("faield to start deployment: %s", err)
 		}
 
-		err = updateServiceTargetPortIfExists(r.Context, newSpec)
+		_, err = updateServiceTargetPortIfExists(r.Context, newSpec)
 		if err != nil {
 			return fmt.Errorf("failed to reload services target port: %s", err)
 		}

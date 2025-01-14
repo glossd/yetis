@@ -6,6 +6,7 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/server"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -47,7 +48,16 @@ func main() {
 		}
 		client.StartBackground(logdir)
 	case "shutdown":
-		client.ShutdownServer(5 * time.Minute)
+		if len(args) == 2 {
+			client.ShutdownServer(5 * time.Minute)
+			return
+		}
+		secondsStr := args[2]
+		seconds, err := strconv.Atoi(secondsStr)
+		if err != nil {
+			fmt.Println("second argument should be the timeout in seconds")
+		}
+		client.ShutdownServer(time.Duration(seconds) * time.Second)
 	case "list": // deprecated.
 		fallthrough
 	case "get":
@@ -59,6 +69,7 @@ func main() {
 		case "-w":
 			if len(args) == 3 {
 				client.WatchGetDeployments()
+				return
 			}
 			switch args[3] {
 			case "deployment", "d":

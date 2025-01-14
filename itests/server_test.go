@@ -265,6 +265,42 @@ func TestServiceLivenessRestart(t *testing.T) {
 	}
 }
 
+func TestDeploymentRestartWithNewYetisPort(t *testing.T) {
+	go server.Run()
+	t.Cleanup(server.Stop)
+	// let the server start
+	time.Sleep(5 * time.Millisecond)
+
+	errs := client.Apply(pwd(t) + "/specs/main.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+
+	dep, err := client.GetDeployment("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !common.IsPortOpenRetry(dep.Spec.YetisPort(), 50*time.Millisecond, 20) {
+		t.Fatal("deployment port should be open", dep.Spec.YetisPort())
+	}
+
+	err = unix.KillByPort(dep.Spec.YetisPort(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(60 * time.Millisecond)
+
+	dep, err = client.GetDeployment("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if common.IsPortOpenRetry(dep.Spec.YetisPort(), 50*time.Millisecond, 20) {
+		t.Fatal("server should be restarted")
+	}
+}
+
 func pwd(t *testing.T) string {
 	fullPath, err := os.Getwd()
 	if err != nil {

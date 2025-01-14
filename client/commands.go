@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"sigs.k8s.io/yaml"
 	"syscall"
 	"text/tabwriter"
@@ -29,8 +30,15 @@ func StartBackground(logdir string) {
 		fmt.Println("yetis is not installed")
 	}
 
-	logFilePath := logdir + "/yetis.log"
-	err := exec.Command("nohup", "yetis", "run", ">>", logFilePath, "2>&1", "&").Start()
+	logFilePath := filepath.Join(logdir, "yetis.log")
+	file, err := os.OpenFile(logFilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0750)
+	if err != nil {
+		fmt.Println("Failed to open log file at", logFilePath, err)
+	}
+	cmd := exec.Command("nohup", "yetis", "run")
+	cmd.Stdout = file
+	cmd.Stderr = file
+	err = cmd.Start()
 	if err != nil {
 		fmt.Println("Failed to start Yetis:", err)
 	}

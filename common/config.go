@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	yaml2 "sigs.k8s.io/yaml"
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -109,6 +110,19 @@ func (ds DeploymentSpec) WithDefaults() Spec {
 		ds.Strategy.Type = Recreate
 	}
 	return ds
+}
+
+func (ds DeploymentSpec) YetisPort() int {
+	for _, envVar := range ds.Env {
+		if envVar.Name == "YETIS_PORT" {
+			port, err := strconv.Atoi(envVar.Value)
+			if err != nil {
+				return 0
+			}
+			return port
+		}
+	}
+	return 0
 }
 
 type Probe struct {
