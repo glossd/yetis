@@ -51,6 +51,7 @@ func GetService(in fetch.Request[fetch.Empty]) (*GetServiceResponse, error) {
 		Port:           ser.spec.Port,
 		DeploymentPort: ser.targetPort,
 		SelectorName:   ser.spec.Selector.Name,
+		UpdatePort:     ser.updatePort,
 	}}, nil
 }
 func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
