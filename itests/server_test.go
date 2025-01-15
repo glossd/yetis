@@ -185,7 +185,7 @@ func TestServiceUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 	checkOK()
 }
 
-func TestRestartRollingUpdate_ZeroDowntime(t *testing.T) {
+func TestRestart_RollingUpdate_ZeroDowntime(t *testing.T) {
 	go server.Run()
 	t.Cleanup(server.Stop)
 	// let the server start
@@ -195,19 +195,13 @@ func TestRestartRollingUpdate_ZeroDowntime(t *testing.T) {
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
-	client.GetServices()
-	forTimeout(time.Second, func() bool {
-		dep, err := client.GetDeployment("go")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if dep.Status == server.Running.String() {
-			return false
-		}
-		return true
-	})
+	checkDeploymentRunning(t, "go")
 	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 50) {
 		t.Fatal("service port should be open")
+	}
+	firstDep, err := client.GetDeployment("go")
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	// checking zero downtime
@@ -223,21 +217,19 @@ func TestRestartRollingUpdate_ZeroDowntime(t *testing.T) {
 		}()
 	}
 
-	err := client.Restart("go")
+	err = client.Restart("go")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	forTimeout(time.Second, func() bool {
-		dep, err := client.GetDeployment("go-1")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if dep.Status == server.Running.String() {
-			return false
-		}
-		return true
-	})
+	checkDeploymentRunning(t, "go-1")
+	secondDep, err := client.GetDeployment("go-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstDep.Spec.YetisPort() == secondDep.Spec.YetisPort() {
+		t.Fatal("restarted on the same port")
+	}
 }
 
 func TestServiceLivenessRestart(t *testing.T) {
@@ -271,33 +263,38 @@ func TestDeploymentRestartWithNewYetisPort(t *testing.T) {
 	// let the server start
 	time.Sleep(5 * time.Millisecond)
 
-	errs := client.Apply(pwd(t) + "/specs/main.yaml")
+	errs := client.Apply(pwd(t) + "/specs/main-rolling-update.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
 
-	dep, err := client.GetDeployment("go")
+	firstDep, err := client.GetDeployment("go")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !common.IsPortOpenRetry(dep.Spec.YetisPort(), 50*time.Millisecond, 20) {
-		t.Fatal("deployment port should be open", dep.Spec.YetisPort())
-	}
+	checkDeploymentRunning(t, "go")
 
-	err = unix.KillByPort(dep.Spec.YetisPort(), true)
+	err = unix.KillByPort(firstDep.Spec.YetisPort(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(60 * time.Millisecond)
+	checkDeploymentRestarted(t, "go")
 
-	dep, err = client.GetDeployment("go")
+	secondDep, err := client.GetDeployment("go") // liveness does not upgrade the name
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if common.IsPortOpenRetry(dep.Spec.YetisPort(), 50*time.Millisecond, 20) {
-		t.Fatal("server should be restarted")
+	if !common.IsPortOpenRetry(secondDep.Spec.YetisPort(), 50*time.Millisecond, 20) {
+		t.Fatal("new deployment port should be open")
+	}
+
+	if secondDep.Spec.YetisPort() == firstDep.Spec.YetisPort() {
+		t.Error("new rolled dep has the same port as the old one", secondDep.Spec.YetisPort())
+	}
+	if secondDep.Spec.GetEnv("Y_PORT") != "$YETIS_PORT" || firstDep.Spec.GetEnv("Y_PORT") != "$YETIS_PORT" {
+		t.Error("env values with YETIS_PORT shouldn't change")
 	}
 }
 
@@ -307,6 +304,32 @@ func pwd(t *testing.T) string {
 		t.Fatalf("pwd: %s", err)
 	}
 	return fullPath
+}
+
+func checkDeploymentRunning(t *testing.T, name string) {
+	forTimeout(5*time.Second, func() bool {
+		dep, err := client.GetDeployment(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dep.Status == server.Running.String() {
+			return false
+		}
+		return true
+	})
+}
+
+func checkDeploymentRestarted(t *testing.T, name string) {
+	forTimeout(5*time.Second, func() bool {
+		dep, err := client.GetDeployment(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if dep.Restarts > 0 {
+			return false
+		}
+		return true
+	})
 }
 
 // return false to break the loop.

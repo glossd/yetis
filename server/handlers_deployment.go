@@ -71,8 +71,9 @@ func startDeploymentWithEnv(spec common.DeploymentSpec, upsert bool) (common.Dep
 	return spec, nil
 }
 
+const yetisPortEnv = "YETIS_PORT"
+
 func setYetisPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error) {
-	const yetisPortEnv = "YETIS_PORT"
 	freePort, err := common.GetFreePort()
 	if err != nil {
 		return common.DeploymentSpec{}, fmt.Errorf("failed to assigned port: %s", err)
@@ -87,11 +88,7 @@ func setYetisPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error) {
 			// remove old env
 			continue
 		}
-		if envVar.Value == "$"+yetisPortEnv {
-			newEnvs = append(newEnvs, common.EnvVar{Name: envVar.Name, Value: strconv.Itoa(freePort)})
-		} else {
-			newEnvs = append(newEnvs, envVar)
-		}
+		newEnvs = append(newEnvs, envVar)
 	}
 	newEnvs = append(newEnvs, common.EnvVar{Name: yetisPortEnv, Value: strconv.Itoa(freePort)})
 	c.Env = newEnvs
@@ -231,7 +228,6 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 		for {
 			select {
 			case <-timeout:
-				fmt.Println("DG duration", duration)
 				// don't delete, need to see what went wrong.
 				return fmt.Errorf("rastart failed: the new '%s' deployment isn't healthy: context deadline exceeded", newSpec.Name)
 			default:

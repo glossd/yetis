@@ -6,9 +6,12 @@ spec:
   logdir: stdout
   strategy:
     type: RollingUpdate
+  env:
+    - name: Y_PORT
+      value: $YETIS_PORT
   livenessProbe:
     initialDelaySeconds: 1
-    periodSeconds: 0.1
+    periodSeconds: 0.05
     failureThreshold: 2
     successThreshold: 1
 ---
