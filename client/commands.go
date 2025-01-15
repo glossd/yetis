@@ -31,7 +31,7 @@ func StartBackground(logdir string) {
 	}
 
 	logFilePath := filepath.Join(logdir, "yetis.log")
-	file, err := os.OpenFile(logFilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0750)
+	file, err := os.OpenFile(logFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0750)
 	if err != nil {
 		fmt.Println("Failed to open log file at", logFilePath, err)
 	}
