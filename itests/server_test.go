@@ -263,7 +263,7 @@ func TestDeploymentRestartWithNewYetisPort(t *testing.T) {
 	// let the server start
 	time.Sleep(5 * time.Millisecond)
 
-	errs := client.Apply(pwd(t) + "/specs/main-rolling-update.yaml")
+	errs := client.Apply(pwd(t) + "/specs/app-port.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
@@ -293,7 +293,7 @@ func TestDeploymentRestartWithNewYetisPort(t *testing.T) {
 	if secondDep.Spec.YetisPort() == firstDep.Spec.YetisPort() {
 		t.Error("new rolled dep has the same port as the old one", secondDep.Spec.YetisPort())
 	}
-	if secondDep.Spec.GetEnv("Y_PORT") != "$YETIS_PORT" || firstDep.Spec.GetEnv("Y_PORT") != "$YETIS_PORT" {
+	if secondDep.Spec.GetEnv("APP_PORT") != "$YETIS_PORT" || firstDep.Spec.GetEnv("APP_PORT") != "$YETIS_PORT" {
 		t.Error("env values with YETIS_PORT shouldn't change")
 	}
 }

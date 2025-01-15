@@ -14,10 +14,5 @@ func main() {
 	if port == "" {
 		panic("YETIS_PORT is not specified")
 	}
-	f, err := os.Create("/tmp/yetis-port")
-	if err != nil {
-		panic(err)
-	}
-	f.Write([]byte(port))
 	http.ListenAndServe(":"+port, nil)
 }

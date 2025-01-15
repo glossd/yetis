@@ -1,0 +1,16 @@
+kind: Deployment
+spec:
+  name: go
+  preCmd: go build -o main cmd/appport/main.go
+  cmd: ./main
+  logdir: stdout
+  strategy:
+    type: RollingUpdate
+  env:
+    - name: APP_PORT
+      value: $YETIS_PORT
+  livenessProbe:
+    initialDelaySeconds: 1
+    periodSeconds: 0.05
+    failureThreshold: 2
+    successThreshold: 1

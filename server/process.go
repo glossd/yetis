@@ -49,7 +49,7 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 			ev.WriteString(" ")
 		}
 		val := envVar.Value
-		if val == yetisPortEnv {
+		if val == "$"+yetisPortEnv {
 			val = strconv.Itoa(c.YetisPort())
 		}
 		if strings.Contains(envVar.Value, "'") {
