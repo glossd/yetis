@@ -176,6 +176,7 @@ func DescribeService(selectorName string) {
 		buf.WriteString(fmt.Sprintf("SelectorName: %s\n", r.SelectorName))
 		buf.WriteString(fmt.Sprintf("Status: %s\n", r.Status))
 		buf.WriteString(fmt.Sprintf("DeploymentPort: %d\n", r.DeploymentPort))
+		buf.WriteString(fmt.Sprintf("UpdatePort: %d\n", r.UpdatePort))
 		fmt.Println(buf.String())
 	}
 }

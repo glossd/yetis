@@ -16,6 +16,7 @@ type ServiceView struct {
 	Port           int
 	SelectorName   string
 	DeploymentPort int
+	UpdatePort     int
 }
 
 func ListService(_ fetch.Empty) ([]ServiceView, error) {
@@ -27,6 +28,7 @@ func ListService(_ fetch.Empty) ([]ServiceView, error) {
 			Port:           v.spec.Port,
 			DeploymentPort: v.targetPort,
 			SelectorName:   v.spec.Selector.Name,
+			UpdatePort:     v.updatePort,
 		})
 		return true
 	})
