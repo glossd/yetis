@@ -54,7 +54,7 @@ func Info() {
 	if err != nil {
 		fmt.Println("Server hasn't responded", err)
 	}
-	fmt.Printf("Server: version=%s, deployments=%d\n", get.Version, get.NumberOfDeployments)
+	fmt.Printf("Server: version=%s, deployments=%d, services=%d\n", get.Version, get.NumberOfDeployments, get.NumberOfServices)
 }
 
 func GetDeployments() {

@@ -73,3 +73,12 @@ func updateServiceStatus(name string, status ProcessStatus) {
 	v.status = status
 	deploymentStore.Store(name, v)
 }
+
+func servicesNum() int {
+	var num int
+	serviceStore.Range(func(name string, p service) bool {
+		num++
+		return true
+	})
+	return num
+}

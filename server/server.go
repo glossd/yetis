@@ -120,11 +120,13 @@ func deleteServicesGracefully() {
 type InfoResponse struct {
 	Version             string
 	NumberOfDeployments int
+	NumberOfServices    int
 }
 
 func Info(_ fetch.Empty) (*InfoResponse, error) {
 	return &InfoResponse{
 		Version:             common.YetisVersion,
 		NumberOfDeployments: deploymentsNum(),
+		NumberOfServices:    servicesNum(),
 	}, nil
 }
