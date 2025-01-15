@@ -146,7 +146,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 
 		updateDeploymentStatus(c.Name, Pending)
 
-		c, err := setDeploymentPortEnv(c)
+		c, err = setYetisPortEnv(c)
 		if err != nil {
 			log.Printf("failed to set prot env for %s deployment: %s \n", c.Name, err)
 			return alive
@@ -159,11 +159,11 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		}
 		_ = updateDeployment(c, pid, logPath, true)
 		thresholdMap.Delete(c.Name)
-		err = updateServiceTargetPortIfExists(ctx, c)
+		ok, err = updateServiceTargetPortIfExists(ctx, c)
 		if err != nil {
 			log.Printf("Liveness restarted deployment, but failed to restart service: %s", err)
-		} else {
-			log.Printf("Liveness changed service of '%s' target port to %d\n", c.Name, getDeploymentPort(c))
+		} else if ok {
+			log.Printf("Liveness changed service of '%s' target port to %d\n", c.Name, c.YetisPort())
 		}
 		// wait for initial delay
 		time.Sleep(c.LivenessProbe.InitialDelayDuration())
@@ -184,16 +184,16 @@ func isPortOpen(port int, dur time.Duration) bool {
 	return common.IsPortOpenTimeout(port, dur)
 }
 
-func updateServiceTargetPortIfExists(ctx context.Context, s common.DeploymentSpec) error {
+func updateServiceTargetPortIfExists(ctx context.Context, s common.DeploymentSpec) (bool, error) {
 	// todo the tcp proxy must automatically change the deployment port without stopping for RollingUpdate
-	err := UpdateServiceTargetPort(fetch.Request[int]{Context: ctx, Body: getDeploymentPort(s)}.WithPathValue("name", s.Name))
+	err := UpdateServiceTargetPort(fetch.Request[int]{Context: ctx, Body: s.YetisPort()}.WithPathValue("name", s.Name))
 	if err != nil {
 		if ferr, ok := err.(*fetch.Error); ok && ferr.Status == 404 {
-			return nil
+			return false, nil
 		} else {
-			return fmt.Errorf("failed to restart service for '%s' deployment: %s", s.Name, err)
+			return false, fmt.Errorf("failed to restart service for '%s' deployment: %s", s.Name, err)
 		}
 	}
 
-	return nil
+	return true, nil
 }

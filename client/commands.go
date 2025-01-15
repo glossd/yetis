@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"sigs.k8s.io/yaml"
 	"syscall"
 	"text/tabwriter"
@@ -29,8 +30,15 @@ func StartBackground(logdir string) {
 		fmt.Println("yetis is not installed")
 	}
 
-	logFilePath := logdir + "/yetis.log"
-	err := exec.Command("nohup", "yetis", "run", ">>", logFilePath, "2>&1", "&").Start()
+	logFilePath := filepath.Join(logdir, "yetis.log")
+	file, err := os.OpenFile(logFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0750)
+	if err != nil {
+		fmt.Println("Failed to open log file at", logFilePath, err)
+	}
+	cmd := exec.Command("nohup", "yetis", "run")
+	cmd.Stdout = file
+	cmd.Stderr = file
+	err = cmd.Start()
 	if err != nil {
 		fmt.Println("Failed to start Yetis:", err)
 	}
@@ -74,9 +82,9 @@ func printDeploymentTable() (int, bool) {
 		return 0, false
 	} else {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND")
+		fmt.Fprintln(tw, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND\tPORT")
 		for _, d := range views {
-			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command))
+			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s\t%d", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command, d.LivenessPort))
 		}
 		tw.Flush()
 		return len(views), true
@@ -90,9 +98,9 @@ func printServiceTable() (int, bool) {
 		return 0, false
 	} else {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "DEPLOYMENT\tPORT\tDEPLOYMENTPORT\tPID")
+		fmt.Fprintln(tw, "SELECTORNAME\tPORT\tSTATUS\tDEPLOYMENTPORT\tPID")
 		for _, s := range views {
-			fmt.Fprintln(tw, fmt.Sprintf("%s\t%d\t%d\t%d", s.SelectorName, s.Port, s.DeploymentPort, s.Pid))
+			fmt.Fprintln(tw, fmt.Sprintf("%s\t%d\t%s\t%d\t%d", s.SelectorName, s.Port, s.Status, s.DeploymentPort, s.Pid))
 		}
 		tw.Flush()
 		return len(views), true
@@ -166,6 +174,7 @@ func DescribeService(selectorName string) {
 		buf.WriteString(fmt.Sprintf("PID: %d\n", r.Pid))
 		buf.WriteString(fmt.Sprintf("Port: %d\n", r.Port))
 		buf.WriteString(fmt.Sprintf("SelectorName: %s\n", r.SelectorName))
+		buf.WriteString(fmt.Sprintf("Status: %s\n", r.Status))
 		buf.WriteString(fmt.Sprintf("DeploymentPort: %d\n", r.DeploymentPort))
 		fmt.Println(buf.String())
 	}

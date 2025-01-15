@@ -66,6 +66,12 @@ func Start(listenPort, targetPort, httpPort int) {
 
 		})
 
+		mux.HandleFunc("GET /info", func(w http.ResponseWriter, r *http.Request) {
+			defer r.Body.Close()
+			w.WriteHeader(200)
+			w.Write([]byte(fmt.Sprintf("Listen: %d, Target: %d\n", listenPort, targetPortVar.Load())))
+		})
+
 		serveErr := http.ListenAndServe(fmt.Sprintf(":%d", httpPort), mux)
 		if serveErr != nil && serveErr != http.ErrServerClosed {
 			panic(fmt.Sprintf("Proxy http server failed to start: %s\n", err))
@@ -79,7 +85,6 @@ func Start(listenPort, targetPort, httpPort int) {
 			fmt.Println("Accept error:", err)
 			return
 		}
-		fmt.Println("Accept", c.LocalAddr(), c.RemoteAddr())
 		go proxyTo(c, int(targetPortVar.Load()))
 	}
 }
