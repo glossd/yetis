@@ -12,7 +12,7 @@ Your VPS doesn't support Docker containers, but you would still like some `k8s` 
 
 ## Installing
 ```shell
-sudo wget -O -P /usr/local/bin https://github.com/glossd/yetis/raw/refs/heads/master/build/yetis && chmod +x /usr/local/bin/yetis 
+sudo wget -O /usr/local/bin/yetis https://github.com/glossd/yetis/raw/refs/heads/master/build/yetis && chmod +x /usr/local/bin/yetis 
 ```
 ## Commands
 *You don't need to be `root`.

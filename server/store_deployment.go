@@ -9,7 +9,6 @@ import (
 )
 
 // todo presist in sqlite
-// name->pid
 var deploymentStore = common.Map[string, deployment]{}
 
 type resource interface {

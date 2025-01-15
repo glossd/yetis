@@ -21,29 +21,29 @@ type Threshold struct {
 const defaultRestartLimit = 2
 
 func startLivenessCheck(c common.DeploymentSpec) {
-	runLivenessCheck(c, defaultRestartLimit, nil)
+	runLivenessCheck(c.Name, c.LivenessProbe.InitialDelayDuration(), c.LivenessProbe.PeriodDuration(), defaultRestartLimit, nil)
 }
 
 // Non-blocking.
-func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool) {
+func runLivenessCheck(name string, init, period time.Duration, restartsLimit int, stop chan bool) {
 	if stop == nil {
 		stop = make(chan bool)
 	}
-	livenessMap.Store(c.Name, stop)
+	livenessMap.Store(name, stop)
 	cleanUp := func() {
-		livenessMap.Delete(c.Name)
-		thresholdMap.Delete(c.Name)
+		livenessMap.Delete(name)
+		thresholdMap.Delete(name)
 	}
 	go func() {
 		select {
 		case <-stop:
 			cleanUp()
 			return
-		case <-time.After(c.LivenessProbe.InitialDelayDuration()):
-			var ticker = time.NewTicker(c.LivenessProbe.PeriodDuration()).C
+		case <-time.After(init):
+			var ticker = time.NewTicker(period).C
 
 			// check instantly
-			if t := heartbeat(c.Name, restartsLimit); t == dead {
+			if t := heartbeat(name, restartsLimit); t == dead {
 				cleanUp()
 				return
 			}
@@ -53,7 +53,7 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 					cleanUp()
 					return
 				case <-ticker:
-					switch heartbeat(c.Name, restartsLimit) {
+					switch heartbeat(name, restartsLimit) {
 					case dead:
 						cleanUp()
 						return
@@ -63,7 +63,7 @@ func runLivenessCheck(c common.DeploymentSpec, restartsLimit int, stop chan bool
 							cleanUp()
 							return
 						case <-time.After(time.Duration(restartsLimit/2) * time.Minute):
-							runLivenessCheck(c, restartsLimit*2, stop)
+							runLivenessCheck(name, init, period, restartsLimit*2, stop)
 							return
 						}
 					}
@@ -104,12 +104,11 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		// release go routine for GC
 		return dead
 	}
-	c := dep.spec
 
-	var port = c.LivenessProbe.TcpSocket.Port
+	var port = dep.spec.LivenessProbe.TcpSocket.Port
 	// Remove 10 milliseconds for everything to process and wait for the new tick.
-	portOpen := isPortOpen(port, c.LivenessProbe.PeriodDuration()-10*time.Millisecond)
-	tsh, ok := thresholdMap.Load(c.Name)
+	portOpen := isPortOpen(port, dep.spec.LivenessProbe.PeriodDuration()-10*time.Millisecond)
+	tsh, ok := thresholdMap.Load(dep.spec.Name)
 	if !ok {
 		tsh = Threshold{}
 	}
@@ -120,57 +119,58 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		tsh.FailureCount++
 		tsh.SuccessCount = 0
 	}
-	thresholdMap.Store(c.Name, tsh)
+	thresholdMap.Store(dep.spec.Name, tsh)
 
-	if tsh.FailureCount >= c.LivenessProbe.FailureThreshold {
-		p, ok := getDeployment(c.Name)
+	if tsh.FailureCount >= dep.spec.LivenessProbe.FailureThreshold {
+		p, ok := getDeployment(dep.spec.Name)
+		spec := p.spec
 		if !ok {
-			log.Printf("Deployment '%s' reached failure threshold, but it doesn't exist\n", c.Name)
+			log.Printf("Deployment '%s' reached failure threshold, but it doesn't exist\n", spec.Name)
 			return dead
 		}
 		if p.restarts >= restartsLimit {
-			updateDeploymentStatus(c.Name, Failed)
-			thresholdMap.Delete(c.Name)
+			updateDeploymentStatus(spec.Name, Failed)
+			thresholdMap.Delete(spec.Name)
 			return tryAgain
 		}
-		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", c.Name)
-		updateDeploymentStatus(c.Name, Terminating)
-		ctx, cancelCtx := context.WithTimeout(context.Background(), c.LivenessProbe.PeriodDuration())
+		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", spec.Name)
+		updateDeploymentStatus(spec.Name, Terminating)
+		ctx, cancelCtx := context.WithTimeout(context.Background(), spec.LivenessProbe.PeriodDuration())
 		defer cancelCtx()
 		err := terminateProcess(ctx, p)
 		if err != nil {
-			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", c.Name, p.pid)
+			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", spec.Name, p.pid)
 		} else {
-			log.Printf("terminated '%s' deployment, pid=%d\n", c.Name, p.pid)
+			log.Printf("terminated '%s' deployment, pid=%d\n", spec.Name, p.pid)
 		}
 
-		updateDeploymentStatus(c.Name, Pending)
+		updateDeploymentStatus(spec.Name, Pending)
 
-		c, err = setYetisPortEnv(c)
+		spec, err = setYetisPortEnv(spec)
 		if err != nil {
-			log.Printf("failed to set prot env for %s deployment: %s \n", c.Name, err)
+			log.Printf("failed to set prot env for %s deployment: %s \n", spec.Name, err)
 			return alive
 		}
 
-		_ = updateDeployment(c, 0, "", false)
-		pid, logPath, err := launchProcess(c)
+		_ = updateDeployment(spec, 0, "", false)
+		pid, logPath, err := launchProcess(spec)
 		if err != nil {
-			log.Printf("Liveness failed to restart deployment '%s': %s\n", c.Name, err)
+			log.Printf("Liveness failed to restart deployment '%s': %s\n", spec.Name, err)
 		}
-		_ = updateDeployment(c, pid, logPath, true)
-		thresholdMap.Delete(c.Name)
-		ok, err = updateServiceTargetPortIfExists(ctx, c)
+		_ = updateDeployment(spec, pid, logPath, true)
+		thresholdMap.Delete(spec.Name)
+		ok, err = updateServiceTargetPortIfExists(ctx, spec)
 		if err != nil {
 			log.Printf("Liveness restarted deployment, but failed to restart service: %s", err)
 		} else if ok {
-			log.Printf("Liveness changed service of '%s' target port to %d\n", c.Name, c.YetisPort())
+			log.Printf("Liveness changed service of '%s' target port to %d\n", spec.Name, spec.YetisPort())
 		}
 		// wait for initial delay
-		time.Sleep(c.LivenessProbe.InitialDelayDuration())
+		time.Sleep(spec.LivenessProbe.InitialDelayDuration())
 		return alive
 	}
-	if tsh.SuccessCount >= c.LivenessProbe.SuccessThreshold {
-		updateDeploymentStatus(c.Name, Running)
+	if tsh.SuccessCount >= dep.spec.LivenessProbe.SuccessThreshold {
+		updateDeploymentStatus(dep.spec.Name, Running)
 	}
 	return alive
 }

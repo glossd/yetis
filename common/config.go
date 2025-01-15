@@ -113,16 +113,20 @@ func (ds DeploymentSpec) WithDefaults() Spec {
 }
 
 func (ds DeploymentSpec) YetisPort() int {
+	port, err := strconv.Atoi(ds.GetEnv("YETIS_PORT"))
+	if err != nil {
+		return 0
+	}
+	return port
+}
+
+func (ds DeploymentSpec) GetEnv(name string) string {
 	for _, envVar := range ds.Env {
-		if envVar.Name == "YETIS_PORT" {
-			port, err := strconv.Atoi(envVar.Value)
-			if err != nil {
-				return 0
-			}
-			return port
+		if envVar.Name == name {
+			return envVar.Value
 		}
 	}
-	return 0
+	return ""
 }
 
 type Probe struct {
