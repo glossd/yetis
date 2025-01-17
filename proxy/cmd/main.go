@@ -83,7 +83,7 @@ func Start(listenPort, targetPort, httpPort int) {
 		c, err := lis.Accept()
 		if err != nil {
 			fmt.Println("Accept error:", err)
-			return
+			continue
 		}
 		go proxyTo(c, int(targetPortVar.Load()))
 	}

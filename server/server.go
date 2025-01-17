@@ -16,7 +16,7 @@ import (
 const YetisServerPort = 54129
 
 func Run() {
-	log.SetFlags(log.LstdFlags) // adds time to the log
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds) // adds time to the log
 
 	mux := http.NewServeMux()
 
@@ -53,7 +53,7 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 	}
 
 	go func() {
-		log.Printf("Starting server on %d\n", YetisServerPort)
+		log.Printf("Starting server %s on port %d\n", common.YetisVersion, YetisServerPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed to listen: %s\n", err)
 		}
@@ -64,7 +64,7 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 	// kill -9 is syscall.SIGKILL but can't be catch, so don't need add it
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down Yetis server...")
+	log.Printf("Shutting down Yetis server %s...\n", common.YetisVersion)
 
 	deleteDeploymentsGracefully()
 	deleteServicesGracefully()

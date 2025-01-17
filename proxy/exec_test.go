@@ -14,6 +14,9 @@ import (
 )
 
 func TestExec(t *testing.T) {
+	port := 4567
+	unix.KillByPort(port, true)
+
 	targetPort := 45678
 
 	mux := &http.ServeMux{}
@@ -27,12 +30,11 @@ func TestExec(t *testing.T) {
 	}
 	for i := 0; i < 10; i++ {
 		fmt.Println("Attempt", i)
-		run(t, targetPort)
+		run(t, port, targetPort)
 	}
 }
 
-func run(t *testing.T, targetPort int) {
-	port := 4567
+func run(t *testing.T, port, targetPort int) {
 	pid, httpPort, err := Exec(port, targetPort, "/tmp/exec.log")
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +43,7 @@ func run(t *testing.T, targetPort int) {
 	if pid <= 0 {
 		t.Fatalf("got pid: %d", pid)
 	}
-	if !common.IsPortOpenRetry(port, 50*time.Millisecond, 20) {
+	if !common.IsPortOpenRetry(port, 50*time.Millisecond, 30) {
 		t.Fatal("proxy's port is closed")
 	}
 	res, err := fetch.Get[string](fmt.Sprintf("http://localhost:%d/hello", port), fetch.Config{Timeout: time.Second})

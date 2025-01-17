@@ -1,6 +1,8 @@
 package common
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -8,27 +10,33 @@ import (
 
 // IsPortOpen tries to establish a TCP connection to the specified address and port
 func IsPortOpen(port int) bool {
-	return IsPortOpenTimeout(port, time.Second)
+	return DialPort(port, time.Second) == nil
 }
 
-func IsPortOpenTimeout(port int, timeout time.Duration) bool {
+func DialPort(port int, timeout time.Duration) error {
 	address := fmt.Sprintf("127.0.0.1:%d", port)
 	conn, err := net.DialTimeout("tcp", address, timeout)
+
 	if err != nil {
-		return false
+		return err
 	}
-	conn.Close()
-	return true
+	if conn != nil {
+		conn.Close()
+	}
+	return nil
 }
 
 func IsPortOpenRetry(port int, period time.Duration, maxRestarts int) bool {
 	if maxRestarts == 0 {
 		return false
 	}
-	if IsPortOpen(port) {
+	err := DialPort(port, period)
+	if err == nil {
 		return true
 	}
-	time.Sleep(period)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		time.Sleep(period)
+	}
 	return IsPortOpenRetry(port, period, maxRestarts-1)
 }
 

@@ -59,7 +59,7 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	if !ok {
 		return nil, fmt.Errorf("selected deployment '%s' doesn't exist", spec.Selector.Name)
 	}
-	if common.IsPortOpenTimeout(spec.Port, 100*time.Millisecond) {
+	if common.IsPortOpen(spec.Port) {
 		return nil, fmt.Errorf("port %d is already occupied", spec.Port)
 	}
 	if spec.Logdir == "" {
@@ -67,6 +67,9 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	}
 	if spec.LivenessProbe.InitialDelaySeconds == 0 {
 		spec.LivenessProbe.InitialDelaySeconds = 5
+	}
+	if spec.LivenessProbe.FailureThreshold == 0 {
+		spec.LivenessProbe.FailureThreshold = 3
 	}
 	err := firstSaveService(spec)
 	if err != nil {
@@ -102,11 +105,15 @@ func startLivenessForService(spec common.ServiceSpec) {
 		if !ok {
 			break
 		}
-		if common.IsPortOpen(ser.spec.Port) {
+		if ser.status == Terminating {
+			continue
+		}
+		if common.IsPortOpenRetry(ser.spec.Port, time.Second, spec.LivenessProbe.FailureThreshold) { // basically 3 failureThreshold
 			updateServiceStatus(name, Running)
 			time.Sleep(100 * time.Millisecond)
 		} else {
 			updateServiceStatus(name, Failed)
+			log.Printf("Port %d of service for %s was closed\n", ser.spec.Port, name)
 			// try to restart it
 			dep, ok := getDeployment(name)
 			if !ok {
@@ -125,7 +132,6 @@ func startLivenessForService(spec common.ServiceSpec) {
 				log.Printf("Failed to update service for '%s': %s\n", name, err)
 				break
 			}
-			log.Printf("Restarted failed service for %s\n", name)
 			// another liveness check
 			time.AfterFunc(5*time.Second, func() {
 				startLivenessForService(spec)
@@ -141,6 +147,7 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	if !ok {
 		return nil, serviceNotFound(name)
 	}
+	updateServiceStatus(name, Terminating)
 	// todo not being terminated in PG
 	err := terminateProcess(in.Context, ser)
 	if err != nil {
@@ -162,8 +169,10 @@ func UpdateServiceTargetPort(in fetch.Request[int]) error {
 	if err != nil {
 		return fmt.Errorf("failed to update port: %s", err)
 	}
+	oldTargetPort := serv.targetPort
 	serv.targetPort = newTargetPort
 	serviceStore.Store(name, serv)
+	log.Printf("Updated service for '%s' target port, old=%d, new=%d", name, oldTargetPort, newTargetPort)
 
 	return nil
 }

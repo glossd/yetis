@@ -65,13 +65,13 @@ func updateService(s common.ServiceSpec, pid int, status ProcessStatus, deployme
 func updateServiceStatus(name string, status ProcessStatus) {
 	serviceWriteLock.Lock()
 	defer serviceWriteLock.Unlock()
-	v, ok := deploymentStore.Load(name)
+	v, ok := serviceStore.Load(name)
 	if !ok {
-		log.Printf("tried to update status but deployment '%s' doesn't exist\n", name)
+		log.Printf("tried to update status but service for '%s' doesn't exist\n", name)
 		return
 	}
 	v.status = status
-	deploymentStore.Store(name, v)
+	serviceStore.Store(name, v)
 }
 
 func servicesNum() int {
