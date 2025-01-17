@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
@@ -40,7 +41,8 @@ func TestProxyingUpdatePort(t *testing.T) {
 		w.Write([]byte(`Hello World`))
 	})
 
-	go http.ListenAndServe(fmt.Sprintf(":%d", firstServerPort), mux)
+	firstServer := http.Server{Addr: fmt.Sprintf(":%d", firstServerPort), Handler: mux}
+	go firstServer.ListenAndServe()
 	go http.ListenAndServe(fmt.Sprintf(":%d", secondServerPort), mux)
 	proxyPort := 24636
 	proxyHttpPort := 47365
@@ -74,5 +76,6 @@ func TestProxyingUpdatePort(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkOK()
+	firstServer.Shutdown(context.Background())
 	time.Sleep(100 * time.Millisecond) // let the goroutines do the work
 }

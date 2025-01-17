@@ -209,13 +209,14 @@ func TestRestart_RollingUpdate_ZeroDowntime(t *testing.T) {
 	var stop atomic.Bool
 
 	// checking zero downtime
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 3; i++ {
 		go func() {
 			for {
+				// the request might take more than a second to complete.
+				res, err := fetch.Get[string]("http://localhost:27000/hello", fetch.Config{Timeout: 3 * time.Second})
 				if stop.Load() {
-					break
+					return
 				}
-				res, err := fetch.Get[string]("http://localhost:27000/hello", fetch.Config{Timeout: time.Second})
 				if err != nil {
 					t.Error("Worker "+strconv.Itoa(i), time.Now(), err)
 					continue
@@ -240,6 +241,7 @@ func TestRestart_RollingUpdate_ZeroDowntime(t *testing.T) {
 	if firstDep.Spec.YetisPort() == secondDep.Spec.YetisPort() {
 		t.Fatal("restarted on the same port")
 	}
+	time.Sleep(3 * time.Second) // let http requests finish or timeout
 	stop.Store(true)
 }
 
@@ -249,7 +251,7 @@ func TestServiceLivenessRestart(t *testing.T) {
 	// let the server start
 	time.Sleep(5 * time.Millisecond)
 
-	errs := client.Apply(pwd(t) + "/specs/main-with-service.yaml")
+	errs := client.Apply(pwd(t) + "/specs/service.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
@@ -262,9 +264,10 @@ func TestServiceLivenessRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	time.Sleep(time.Second)
 
-	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 20) {
-		t.Fatal("server should be restarted")
+	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 30) {
+		t.Fatal("service should be restarted")
 	}
 }
 

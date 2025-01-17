@@ -184,7 +184,7 @@ func isPortOpen(port int, dur time.Duration) bool {
 	if isPortOpenMock != nil {
 		return *isPortOpenMock
 	}
-	return common.IsPortOpenTimeout(port, dur)
+	return common.DialPort(port, dur) == nil
 }
 
 func updateServiceTargetPortIfExists(ctx context.Context, s common.DeploymentSpec) (bool, error) {

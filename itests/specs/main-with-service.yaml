@@ -13,7 +13,5 @@ spec:
 kind: Service
 spec:
   port: 27000
-  livenessProbe:
-    initialDelaySeconds: 1
   selector:
     name: go

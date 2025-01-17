@@ -1,0 +1,16 @@
+spec:
+  name: hello
+  cmd: nc -lk 5768
+  logdir: stdout
+  livenessProbe:
+    tcpSocket:
+      port: 5768
+---
+kind: Service
+spec:
+  port: 27000
+  livenessProbe:
+    initialDelaySeconds: 1
+    failureThreshold: 1
+  selector:
+    name: hello

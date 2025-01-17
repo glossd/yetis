@@ -59,7 +59,7 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	if !ok {
 		return nil, fmt.Errorf("selected deployment '%s' doesn't exist", spec.Selector.Name)
 	}
-	if common.IsPortOpenTimeout(spec.Port, 100*time.Millisecond) {
+	if common.IsPortOpen(spec.Port) {
 		return nil, fmt.Errorf("port %d is already occupied", spec.Port)
 	}
 	if spec.Logdir == "" {
@@ -67,6 +67,9 @@ func PostService(spec common.ServiceSpec) (*fetch.Empty, error) {
 	}
 	if spec.LivenessProbe.InitialDelaySeconds == 0 {
 		spec.LivenessProbe.InitialDelaySeconds = 5
+	}
+	if spec.LivenessProbe.FailureThreshold == 0 {
+		spec.LivenessProbe.FailureThreshold = 3
 	}
 	err := firstSaveService(spec)
 	if err != nil {
@@ -105,7 +108,7 @@ func startLivenessForService(spec common.ServiceSpec) {
 		if ser.status == Terminating {
 			continue
 		}
-		if common.IsPortOpenRetry(ser.spec.Port, time.Second, 3) { // basically 3 failureThreshold
+		if common.IsPortOpenRetry(ser.spec.Port, time.Second, spec.LivenessProbe.FailureThreshold) { // basically 3 failureThreshold
 			updateServiceStatus(name, Running)
 			time.Sleep(100 * time.Millisecond)
 		} else {
