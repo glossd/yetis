@@ -188,6 +188,8 @@ func DeleteDeployment(r fetch.Request[fetch.Empty]) error {
 		return fmt.Errorf(`'%s' doesn't exist'`, name)
 	}
 
+	updateDeploymentStatus(name, Terminating)
+
 	err := terminateProcess(r.Context, d)
 	if err != nil {
 		return err

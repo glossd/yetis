@@ -102,6 +102,9 @@ func startLivenessForService(spec common.ServiceSpec) {
 		if !ok {
 			break
 		}
+		if ser.status == Terminating {
+			continue
+		}
 		if common.IsPortOpenRetry(ser.spec.Port, time.Second, 3) { // basically 3 failureThreshold
 			updateServiceStatus(name, Running)
 			time.Sleep(100 * time.Millisecond)
@@ -141,6 +144,7 @@ func DeleteService(in fetch.Request[fetch.Empty]) (*fetch.Empty, error) {
 	if !ok {
 		return nil, serviceNotFound(name)
 	}
+	updateServiceStatus(name, Terminating)
 	// todo not being terminated in PG
 	err := terminateProcess(in.Context, ser)
 	if err != nil {

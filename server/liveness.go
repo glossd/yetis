@@ -104,6 +104,9 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		// release go routine for GC
 		return dead
 	}
+	if dep.status == Terminating {
+		return alive
+	}
 
 	var port = dep.spec.LivenessProbe.TcpSocket.Port
 	// Remove 10 milliseconds for everything to process and wait for the new tick.
