@@ -46,7 +46,7 @@ func TerminateProcess(ctx context.Context, pid int) error {
 			if !IsProcessAlive(process.Pid) {
 				return nil
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(5 * time.Millisecond)
 		}
 	}
 }

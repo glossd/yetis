@@ -11,6 +11,8 @@ import (
 	"github.com/glossd/yetis/server"
 	"os"
 	"os/exec"
+	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -204,15 +206,23 @@ func TestRestart_RollingUpdate_ZeroDowntime(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	var stop atomic.Bool
+
 	// checking zero downtime
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 2; i++ {
 		go func() {
-			res, err := fetch.Get[string]("http://localhost:27000/hello", fetch.Config{Timeout: time.Second})
-			if err != nil {
-				t.Error(err)
-			}
-			if res != "OK" {
-				t.Errorf("wrong response %v", res)
+			for {
+				if stop.Load() {
+					break
+				}
+				res, err := fetch.Get[string]("http://localhost:27000/hello", fetch.Config{Timeout: time.Second})
+				if err != nil {
+					t.Error("Worker "+strconv.Itoa(i), time.Now(), err)
+					continue
+				}
+				if res != "OK" {
+					t.Errorf("wrong response %v", res)
+				}
 			}
 		}()
 	}
@@ -230,6 +240,7 @@ func TestRestart_RollingUpdate_ZeroDowntime(t *testing.T) {
 	if firstDep.Spec.YetisPort() == secondDep.Spec.YetisPort() {
 		t.Fatal("restarted on the same port")
 	}
+	stop.Store(true)
 }
 
 func TestServiceLivenessRestart(t *testing.T) {

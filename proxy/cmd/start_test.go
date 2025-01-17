@@ -54,20 +54,25 @@ func TestProxyingUpdatePort(t *testing.T) {
 	checkOK := func() {
 		res, err := fetch.Get[string](fmt.Sprintf("http://localhost:%d/hello", proxyPort))
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		if res != `Hello World` {
 			t.Errorf("wrong body, got %s", res)
 		}
 	}
 	checkOK()
+	for i := 0; i < 3; i++ {
+		go func() {
+			for {
+				checkOK()
+			}
+		}()
+	}
 
 	_, err := fetch.Post[fetch.Empty](fmt.Sprintf("http://localhost:%d/update", proxyHttpPort), secondServerPort)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	for i := 0; i < 5; i++ {
-		checkOK()
-	}
+	checkOK()
+	time.Sleep(100 * time.Millisecond) // let the goroutines do the work
 }

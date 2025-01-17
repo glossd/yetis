@@ -195,6 +195,7 @@ func DeleteDeployment(r fetch.Request[fetch.Empty]) error {
 
 	deleteDeployment(name)
 	deleteLivenessCheck(name)
+	log.Printf("Deleted deployment '%s'\n", name)
 	return nil
 }
 
@@ -247,6 +248,9 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 		if err != nil {
 			return fmt.Errorf("failed to reload service's target port: %s", err)
 		}
+
+		// give it 50 millis in case the deployment doesn't have graceful shutdown
+		time.Sleep(50 * time.Millisecond)
 
 		// delete old deployment
 		err = DeleteDeployment(fetch.Request[fetch.Empty]{Context: r.Context, PathValues: map[string]string{"name": oldDeployment.spec.Name}})

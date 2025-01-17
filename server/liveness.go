@@ -185,8 +185,7 @@ func isPortOpen(port int, dur time.Duration) bool {
 }
 
 func updateServiceTargetPortIfExists(ctx context.Context, s common.DeploymentSpec) (bool, error) {
-	// todo the tcp proxy must automatically change the deployment port without stopping for RollingUpdate
-	err := UpdateServiceTargetPort(fetch.Request[int]{Context: ctx, Body: s.YetisPort()}.WithPathValue("name", s.Name))
+	err := UpdateServiceTargetPort(fetch.Request[int]{Context: ctx, Body: s.YetisPort()}.WithPathValue("name", rootNameForRollingUpdate(s.Name)))
 	if err != nil {
 		if ferr, ok := err.(*fetch.Error); ok && ferr.Status == 404 {
 			return false, nil

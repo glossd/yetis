@@ -102,11 +102,12 @@ func startLivenessForService(spec common.ServiceSpec) {
 		if !ok {
 			break
 		}
-		if common.IsPortOpen(ser.spec.Port) {
+		if common.IsPortOpenRetry(ser.spec.Port, time.Second, 3) { // basically 3 failureThreshold
 			updateServiceStatus(name, Running)
 			time.Sleep(100 * time.Millisecond)
 		} else {
 			updateServiceStatus(name, Failed)
+			log.Printf("Port %d of service for %s was closed\n", ser.spec.Port, name)
 			// try to restart it
 			dep, ok := getDeployment(name)
 			if !ok {
@@ -125,7 +126,6 @@ func startLivenessForService(spec common.ServiceSpec) {
 				log.Printf("Failed to update service for '%s': %s\n", name, err)
 				break
 			}
-			log.Printf("Restarted failed service for %s\n", name)
 			// another liveness check
 			time.AfterFunc(5*time.Second, func() {
 				startLivenessForService(spec)
@@ -162,8 +162,10 @@ func UpdateServiceTargetPort(in fetch.Request[int]) error {
 	if err != nil {
 		return fmt.Errorf("failed to update port: %s", err)
 	}
+	oldTargetPort := serv.targetPort
 	serv.targetPort = newTargetPort
 	serviceStore.Store(name, serv)
+	log.Printf("Updated service for '%s' target port, old=%d, new=%d", name, oldTargetPort, newTargetPort)
 
 	return nil
 }
