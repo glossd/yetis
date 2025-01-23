@@ -1,81 +1,53 @@
 package proxy
 
 import (
-	_ "embed"
 	"fmt"
-	"github.com/glossd/yetis/common"
-	"log"
-	"os"
 	"os/exec"
-	"strconv"
-	"sync"
+	"strings"
 )
 
-//go:embed cmd/main
-var binary []byte
-
+// no need for logPath
 func Exec(port, targetPort int, logPath string) (int, int, error) {
-	const filePath = "/tmp/yetis-proxy"
-
-	if !proxyFileExists(filePath) {
-		log.Println("tcp proxy file doesn't exist, creating one...")
-		err := createYetisProxyFile(filePath)
-		if err != nil {
-			return 0, 0, err
-		}
-	}
-
-	httpPort, err := common.GetFreePort()
-	if err != nil {
-		return 0, 0, err
-	}
-	cmd := exec.Command(filePath, strconv.Itoa(port), strconv.Itoa(targetPort), strconv.Itoa(httpPort))
-	if logPath != "" {
-		file, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0750)
-		if err != nil {
-			return 0, 0, fmt.Errorf("failed to create log file : %s", err)
-		}
-		cmd.Stdout = file
-		cmd.Stderr = file
-	}
-	err = cmd.Start()
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to start command: %s", err)
-	}
-	if cmd.Process.Pid == 0 {
-		return 0, 0, fmt.Errorf("pid is 0")
-	}
-	return cmd.Process.Pid, httpPort, nil
+	err := CreatePortForwarding(port, targetPort)
+	// no longer need to return pid or updatePort
+	return 0, 0, err
 }
 
-func proxyFileExists(filePath string) bool {
-	fi, err := os.Stat(filePath)
-	if err != nil {
-		return false
-	}
-	return fi.Size() == int64(len(binary))
+func CreatePortForwarding(fromPort, toPort int) error {
+	// todo  return the line number?
+	// https://askubuntu.com/a/579540/915003
+	argStr := "-t nat -A OUTPUT " + portForwardRule(fromPort, toPort)
+	cmd := exec.Command("iptables", strings.Split(argStr, " ")...)
+	return cmd.Run()
 }
 
-var createMutex sync.Mutex
+func DeletePortForwarding(fromPort, toPort int) error {
+	// https://stackoverflow.com/a/14521050/10160865
+	line, err := getLine(fromPort, toPort)
+	if err != nil {
+		return err
+	}
+	argStr := fmt.Sprintf("-t nat -D OUTPUT %d", line)
+	cmd := exec.Command("iptables", strings.Split(argStr, " ")...)
+	return cmd.Run()
+}
 
-func createYetisProxyFile(filePath string) error {
-	createMutex.Lock()
-	defer createMutex.Unlock()
-	file, err := os.Create(filePath)
+func UpdatePortForwarding(oldFromPort, newFromPort, toPort int) error {
+	// https://stackoverflow.com/a/33468689/10160865
+	line, err := getLine(oldFromPort, toPort)
 	if err != nil {
-		return fmt.Errorf("failed to create/open yetis-proxy file: %s", err)
+		return err
 	}
-	_, err = file.Write(binary)
-	if err != nil {
-		return fmt.Errorf("failed to write to yetis-proxy file: %s", err)
-	}
-	err = file.Close()
-	if err != nil {
-		return fmt.Errorf("failed to close yetis-proxy file writer: %s", err)
-	}
-	err = exec.Command("chmod", "+x", filePath).Run()
-	if err != nil {
-		return fmt.Errorf("failed to make yetis-proxy executable: %s", err)
-	}
-	return nil
+	argStr := fmt.Sprintf("-t nat -R OUTPUT %d ", line) + portForwardRule(oldFromPort, toPort)
+	cmd := exec.Command("iptables", strings.Split(argStr, " ")...)
+	return cmd.Run()
+}
+
+func getLine(fromPort, toPort int) (int, error) {
+
+	return 0, fmt.Errorf("iptables rule not found")
+}
+
+func portForwardRule(fromPort, toPort int) string {
+	return fmt.Sprintf("-o lo -p tcp --dport %d -j REDIRECT --to-port %d", fromPort, toPort)
 }

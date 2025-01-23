@@ -13,7 +13,11 @@ import (
 	"time"
 )
 
-const YetisServerPort = 54129
+// ports from 0-1023 are system or well-known ports.
+// ports from 1024-49151 are user or registered.
+// ports from 49152-65535 are called dynamic.
+
+const YetisServerPort = 34711
 
 func Run() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds) // adds time to the log
