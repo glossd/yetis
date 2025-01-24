@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
+	"github.com/glossd/yetis/proxy"
 	"log"
 	"regexp"
 	"slices"
@@ -27,18 +28,33 @@ func PostDeployment(req fetch.Request[common.DeploymentSpec]) error {
 		if err != nil {
 			return err
 		}
+		if spec.LivenessProbe.Port() > 0 {
+			return fmt.Errorf("livenessProxy.tcpSocket.port can't be specified with RollingUpdate strategy")
+		}
+		if spec.Proxy.Port == 0 {
+			return fmt.Errorf("proxy.port must be specified with RollingUpdate strategy")
+		}
 	}
+
+	if spec.Proxy.Port > 0 && spec.LivenessProbe.Port() > 0 {
+		return fmt.Errorf("livenessProxy.tcpSocket.port can't be specified with proxy.port")
+	}
+
+	// todo first start its proxy then deployment, then delete proxy if deployment error
 	spec, err := startDeploymentWithEnv(spec, false)
 	if err != nil {
 		return err
 	}
 
-	_, err = updateServiceTargetPortIfExists(req.Context, spec)
-	if err != nil {
-		log.Println("Failed to update service target port:", err)
+	startLivenessCheck(spec)
+
+	if spec.Proxy.Port > 0 {
+		err := proxy.CreatePortForwarding(spec.Proxy.Port, spec.LivenessProbe.Port())
+		if err != nil {
+			return fmt.Errorf("started deployment but failed to create proxy: %s", err)
+		}
 	}
 
-	startLivenessCheck(spec)
 	return nil
 }
 
@@ -78,7 +94,7 @@ func setYetisPortEnv(c common.DeploymentSpec) (common.DeploymentSpec, error) {
 	if err != nil {
 		return common.DeploymentSpec{}, fmt.Errorf("failed to assigned port: %s", err)
 	}
-	if c.LivenessProbe.TcpSocket.Port == 0 || isYetisPortUsed(c) {
+	if c.LivenessProbe.Port() == 0 || isYetisPortUsed(c) {
 		c.LivenessProbe.TcpSocket.Port = freePort
 	}
 
@@ -119,7 +135,7 @@ func ListDeployment() ([]DeploymentView, error) {
 			Restarts:     p.restarts,
 			Age:          ageSince(p.createdAt),
 			Command:      p.spec.Cmd,
-			LivenessPort: p.spec.LivenessProbe.TcpSocket.Port,
+			LivenessPort: p.spec.LivenessProbe.Port(),
 		})
 	})
 
@@ -197,6 +213,12 @@ func DeleteDeployment(r fetch.Request[fetch.Empty]) error {
 
 	deleteDeployment(name)
 	deleteLivenessCheck(name)
+	if d.spec.Proxy.Port > 0 {
+		err := proxy.DeletePortForwarding(d.spec.Proxy.Port, d.spec.LivenessProbe.Port())
+		if err != nil {
+			log.Println("Failed to delete port forwarding:", err)
+		}
+	}
 	log.Printf("Deleted deployment '%s'\n", name)
 	return nil
 }
@@ -222,7 +244,7 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 		if err != nil {
 			return fmt.Errorf("rastart failed: the new rolling deployment of '%s' failed to start: %s", oldDeployment.spec.Name, err)
 		}
-		go startLivenessCheck(newSpec)
+		startLivenessCheck(newSpec)
 		// check that the new deployment is healthy
 
 		duration := 10000*time.Millisecond + newSpec.LivenessProbe.InitialDelayDuration() + time.Duration(newSpec.LivenessProbe.FailureThreshold)*newSpec.LivenessProbe.PeriodDuration()
@@ -245,10 +267,10 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 			}
 		}
 
-		// point the service to the new port
-		_, err := updateServiceTargetPortIfExists(r.Context, newSpec)
+		// point to the new port
+		err := proxy.UpdatePortForwarding(oldDeployment.spec.Proxy.Port, oldDeployment.spec.LivenessProbe.Port(), newSpec.LivenessProbe.Port())
 		if err != nil {
-			return fmt.Errorf("failed to reload service's target port: %s", err)
+			return fmt.Errorf("started new deployment but failed to update proxy: %s", err)
 		}
 
 		// give it 50 millis in case the deployment doesn't have graceful shutdown
@@ -270,10 +292,13 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 			return fmt.Errorf("faield to start deployment: %s", err)
 		}
 
-		_, err = updateServiceTargetPortIfExists(r.Context, newSpec)
-		if err != nil {
-			return fmt.Errorf("failed to reload services target port: %s", err)
+		if oldDeployment.spec.Proxy.Port > 0 {
+			err := proxy.UpdatePortForwarding(oldDeployment.spec.Proxy.Port, oldDeployment.spec.LivenessProbe.Port(), newSpec.LivenessProbe.Port())
+			if err != nil {
+				return fmt.Errorf("restarted deployment but failed to update proxy port: %s", err)
+			}
 		}
+
 		startLivenessCheck(newSpec)
 	}
 

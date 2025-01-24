@@ -73,14 +73,10 @@ spec:
   strategy:
     type: RollingUpdate # For zero downtime
   env:
-    - name: APP_PORT # If you configure a Service, your app shouldn't have a static port.
+    - name: APP_PORT # When you specify proxy, your app shouldn't have a static port.
       value: $YETIS_PORT
----
-kind: Service
-spec:
-  port: 2345
-  selector:
-    name: frontend
+  proxy:
+    port: 2345 # Forwards traffic from 2345 to the port in YETIS_PORT env var. 
 ```
 
 ## Deployment configuration
@@ -93,32 +89,23 @@ spec:
   workdir: /home/user/myproject # Directory where command is executed. Defaults to the path in 'apply -f'. 
   logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to the path in 'apply -f'.
   strategy:
-    type: Recreate # Recreate or RollingUpdate. Defaults to Recreate. 
+    type: Recreate # Recreate or RollingUpdate. Defaults to Recreate.
   livenessProbe: # Checks if the command is alive and if not then restarts it
     tcpSocket:
-      port: 8080 # Should be specified if Service is not configured. Defaults to $YETIS_PORT 
+      port: 8080 # Should be specified if proxy is not configured. Defaults to $YETIS_PORT 
     initialDelaySeconds: 5 # Defaults to 10
     periodSeconds: 5 # Defaults to 10
     failureThreshold: 3 # Defaults to 3
     successThreshold: 1 # Defaults to 1
-  env:
+  env: # YETIS_PORT env var is passed by default. You should use alongside proxy config. 
     - name: SOME_SECRET
       value: "pancakes are cakes made in a pan"
     - name: SOME_PASSWORD
       value: mellon
     - name: MY_PORT
       value: $YETIS_PORT # pass the value of the environment variable to another one.
-```
-
-## Service configuration
-Service is a proxy for the deployment with a static port. It allows RollingUpdate and zero deployment.
-```yaml
-kind: Service
-spec:
-  port: 4567 # The port for Service to run on
-  logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to /tmp'.
-  selector:
-    name: name-of-deployment # Name of the deployment to proxy to.
+  proxy:
+    port: 8080 # Tells linux to forward from the specified port to $YETIS_PORT, allowing zero downtime restarts.
 ```
 
 ### Liveness Probe

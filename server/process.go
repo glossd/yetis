@@ -82,7 +82,7 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 	pid := cmd.Process.Pid
 
 	if isYetisPortUsed(c) {
-		log.Printf("launched '%s' deployment with port=%d, pid=%d\n", c.Name, c.LivenessProbe.TcpSocket.Port, pid)
+		log.Printf("launched '%s' deployment with port=%d, pid=%d\n", c.Name, c.LivenessProbe.Port(), pid)
 	} else {
 		log.Printf("launched '%s' deployment, pid=%d\n", c.Name, pid)
 	}

@@ -2,9 +2,8 @@ package server
 
 import (
 	"context"
-	"fmt"
-	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
+	"github.com/glossd/yetis/proxy"
 	"log"
 	"time"
 )
@@ -20,6 +19,7 @@ type Threshold struct {
 
 const defaultRestartLimit = 2
 
+// Non-blocking
 func startLivenessCheck(c common.DeploymentSpec) {
 	runLivenessCheck(c.Name, c.LivenessProbe.InitialDelayDuration(), c.LivenessProbe.PeriodDuration(), defaultRestartLimit, nil)
 }
@@ -108,7 +108,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		return alive
 	}
 
-	var port = dep.spec.LivenessProbe.TcpSocket.Port
+	var port = dep.spec.LivenessProbe.Port()
 	// Remove 10 milliseconds for everything to process and wait for the new tick.
 	portOpen := isPortOpen(port, dep.spec.LivenessProbe.PeriodDuration()-10*time.Millisecond)
 	tsh, ok := thresholdMap.Load(dep.spec.Name)
@@ -126,50 +126,53 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 
 	if tsh.FailureCount >= dep.spec.LivenessProbe.FailureThreshold {
 		p, ok := getDeployment(dep.spec.Name)
-		spec := p.spec
+		oldSpec := p.spec
 		if !ok {
-			log.Printf("Deployment '%s' reached failure threshold, but it doesn't exist\n", spec.Name)
+			log.Printf("Deployment '%s' reached failure threshold, but it doesn't exist\n", oldSpec.Name)
 			return dead
 		}
 		if p.restarts >= restartsLimit {
-			updateDeploymentStatus(spec.Name, Failed)
-			thresholdMap.Delete(spec.Name)
+			updateDeploymentStatus(oldSpec.Name, Failed)
+			thresholdMap.Delete(oldSpec.Name)
 			return tryAgain
 		}
-		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", spec.Name)
-		updateDeploymentStatus(spec.Name, Terminating)
-		ctx, cancelCtx := context.WithTimeout(context.Background(), spec.LivenessProbe.PeriodDuration())
+		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", oldSpec.Name)
+		updateDeploymentStatus(oldSpec.Name, Terminating)
+		ctx, cancelCtx := context.WithTimeout(context.Background(), oldSpec.LivenessProbe.PeriodDuration())
 		defer cancelCtx()
 		err := terminateProcess(ctx, p)
 		if err != nil {
-			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", spec.Name, p.pid)
+			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", oldSpec.Name, p.pid)
 		} else {
-			log.Printf("terminated '%s' deployment, pid=%d\n", spec.Name, p.pid)
+			log.Printf("terminated '%s' deployment, pid=%d\n", oldSpec.Name, p.pid)
 		}
 
-		updateDeploymentStatus(spec.Name, Pending)
+		updateDeploymentStatus(oldSpec.Name, Pending)
 
-		spec, err = setYetisPortEnv(spec)
+		newSpec, err := setYetisPortEnv(oldSpec)
 		if err != nil {
-			log.Printf("failed to set prot env for %s deployment: %s \n", spec.Name, err)
+			log.Printf("failed to set prot env for %s deployment: %s \n", newSpec.Name, err)
 			return alive
 		}
 
-		_ = updateDeployment(spec, 0, "", false)
-		pid, logPath, err := launchProcess(spec)
+		_ = updateDeployment(newSpec, 0, "", false)
+		pid, logPath, err := launchProcess(newSpec)
 		if err != nil {
-			log.Printf("Liveness failed to restart deployment '%s': %s\n", spec.Name, err)
+			log.Printf("Liveness failed to restart deployment '%s': %s\n", newSpec.Name, err)
 		}
-		_ = updateDeployment(spec, pid, logPath, true)
-		thresholdMap.Delete(spec.Name)
-		ok, err = updateServiceTargetPortIfExists(ctx, spec)
-		if err != nil {
-			log.Printf("Liveness restarted deployment, but failed to restart service: %s", err)
-		} else if ok {
-			log.Printf("Liveness changed service of '%s' target port to %d\n", spec.Name, spec.YetisPort())
+		_ = updateDeployment(newSpec, pid, logPath, true)
+		thresholdMap.Delete(newSpec.Name)
+		if newSpec.Proxy.Port > 0 {
+			err := proxy.UpdatePortForwarding(newSpec.Proxy.Port, p.spec.LivenessProbe.Port(), newSpec.LivenessProbe.Port())
+			if err != nil {
+				log.Printf("Liveness restarted deployment, but failed to restart service: %s", err)
+			} else {
+				log.Printf("Liveness changed service of '%s' target port to %d\n", newSpec.Name, newSpec.LivenessProbe.Port())
+			}
 		}
+
 		// wait for initial delay
-		time.Sleep(spec.LivenessProbe.InitialDelayDuration())
+		time.Sleep(newSpec.LivenessProbe.InitialDelayDuration())
 		return alive
 	}
 	if tsh.SuccessCount >= dep.spec.LivenessProbe.SuccessThreshold {
@@ -185,17 +188,4 @@ func isPortOpen(port int, dur time.Duration) bool {
 		return *isPortOpenMock
 	}
 	return common.DialPort(port, dur) == nil
-}
-
-func updateServiceTargetPortIfExists(ctx context.Context, s common.DeploymentSpec) (bool, error) {
-	err := UpdateServiceTargetPort(fetch.Request[int]{Context: ctx, Body: s.YetisPort()}.WithPathValue("name", rootNameForRollingUpdate(s.Name)))
-	if err != nil {
-		if ferr, ok := err.(*fetch.Error); ok && ferr.Status == 404 {
-			return false, nil
-		} else {
-			return false, fmt.Errorf("failed to restart service for '%s' deployment: %s", s.Name, err)
-		}
-	}
-
-	return true, nil
 }

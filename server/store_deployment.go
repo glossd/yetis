@@ -30,7 +30,7 @@ func (d deployment) getPid() int {
 }
 
 func (d deployment) getPort() int {
-	return d.spec.LivenessProbe.TcpSocket.Port
+	return d.spec.LivenessProbe.Port()
 }
 
 type ProcessStatus int

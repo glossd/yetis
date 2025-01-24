@@ -1,19 +1,16 @@
 package proxy
 
 import (
-	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
 	"net/http"
-	"os"
-	"os/signal"
 	"testing"
 	"time"
 )
 
-func TestExec(t *testing.T) {
+func TestCreatePortForwarding(t *testing.T) {
 	port := 4567
 	unix.KillByPort(port, true)
 
@@ -28,21 +25,14 @@ func TestExec(t *testing.T) {
 	if !common.IsPortOpenRetry(targetPort, 50*time.Millisecond, 20) {
 		t.Fatal("target port should be open")
 	}
-	for i := 0; i < 10; i++ {
-		fmt.Println("Attempt", i)
-		run(t, port, targetPort)
-	}
-}
 
-func run(t *testing.T, port, targetPort int) {
-	pid, httpPort, err := Exec(port, targetPort, "/tmp/exec.log")
+	err := CreatePortForwarding(port, targetPort)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer unix.TerminateProcessTimeout(pid, time.Second)
-	if pid <= 0 {
-		t.Fatalf("got pid: %d", pid)
-	}
+
+	defer DeletePortForwarding(port, targetPort)
+
 	if !common.IsPortOpenRetry(port, 50*time.Millisecond, 30) {
 		t.Fatal("proxy's port is closed")
 	}
@@ -53,15 +43,12 @@ func run(t *testing.T, port, targetPort int) {
 	if res != "OK" {
 		t.Fatal("failed to proxy to http server")
 	}
-	if !common.IsPortOpenRetry(httpPort, 50*time.Millisecond, 20) {
-		t.Fatal("http port is closed")
-	}
 }
 
-func TestExecChangePort(t *testing.T) {
+func TestUpdatePortForwarding(t *testing.T) {
 	port := 4567
 	fakeDeploymentPort := 45678
-	_, httpPort, err := Exec(port, fakeDeploymentPort, "/tmp/exec-test.log")
+	err := CreatePortForwarding(port, fakeDeploymentPort)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +69,7 @@ func TestExecChangePort(t *testing.T) {
 		t.Fatal("second deployment port should be open")
 	}
 
-	_, err = fetch.Post[fetch.Empty](fmt.Sprintf("http://localhost:%d/update", httpPort), secondPort)
+	err = UpdatePortForwarding(port, fakeDeploymentPort, secondPort)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,23 +83,17 @@ func TestExecChangePort(t *testing.T) {
 	}
 }
 
-func startServer(mux *http.ServeMux, port int, stop chan os.Signal) {
-	server := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
-
-	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			// handle err
-		}
-	}()
-
-	signal.Notify(stop, os.Interrupt)
-
-	// Waiting for SIGINT (kill -2)
-	<-stop
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := server.Shutdown(ctx); err != nil {
-		// handle err
+func TestExtractLineNumber(t *testing.T) {
+	output := `
+Chain OUTPUT (policy ACCEPT)
+num target     prot opt  source       destination
+1   REDIRECT   tcp  --   anywhere     anywhere          tcp dpt:1024 redir ports 8080
+`
+	num, err := extractLine(output, 1024, 8080)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if num != 1 {
+		t.Fatal("num mismatch")
 	}
 }

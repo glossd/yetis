@@ -3,15 +3,11 @@ package proxy
 import (
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
-// no need for logPath
-func Exec(port, targetPort int, logPath string) (int, int, error) {
-	err := CreatePortForwarding(port, targetPort)
-	// no longer need to return pid or updatePort
-	return 0, 0, err
-}
+var ErrRuleNotFound = fmt.Errorf("iptables rule not found")
 
 func CreatePortForwarding(fromPort, toPort int) error {
 	// todo  return the line number?
@@ -32,20 +28,57 @@ func DeletePortForwarding(fromPort, toPort int) error {
 	return cmd.Run()
 }
 
-func UpdatePortForwarding(oldFromPort, newFromPort, toPort int) error {
+func UpdatePortForwarding(fromPort, oldToPort, newToPort int) error {
 	// https://stackoverflow.com/a/33468689/10160865
-	line, err := getLine(oldFromPort, toPort)
+	if oldToPort == newToPort {
+		return nil
+	}
+	line, err := getLine(fromPort, oldToPort)
 	if err != nil {
+		if err == ErrRuleNotFound {
+			err := CreatePortForwarding(fromPort, newToPort)
+			if err != nil {
+				return fmt.Errorf("rule was not found and failed to create it: %s", err)
+			}
+			return nil
+		}
 		return err
 	}
-	argStr := fmt.Sprintf("-t nat -R OUTPUT %d ", line) + portForwardRule(oldFromPort, toPort)
+	argStr := fmt.Sprintf("-t nat -R OUTPUT %d ", line) + portForwardRule(fromPort, newToPort)
 	cmd := exec.Command("iptables", strings.Split(argStr, " ")...)
 	return cmd.Run()
 }
 
 func getLine(fromPort, toPort int) (int, error) {
+	output, err := exec.Command("iptables -t nat -L OUTPUT --line-numbers").Output()
+	if err != nil {
+		return 0, fmt.Errorf("failed to list iptables rules: %s", err)
+	}
+	return extractLine(string(output), fromPort, toPort)
+}
 
-	return 0, fmt.Errorf("iptables rule not found")
+func extractLine(output string, fromPort, toPort int) (int, error) {
+	lines := strings.Split(output, "\n")
+	fromPortStr := strconv.Itoa(fromPort)
+	// for some reason iptables list replaces the well-known ports with their names.
+	switch fromPort {
+	case 80:
+		fromPortStr = "http"
+	case 443:
+		fromPortStr = "https"
+	}
+
+	for _, line := range lines {
+		if strings.Contains(line, fromPortStr) && strings.Contains(line, strconv.Itoa(toPort)) {
+			lexes := strings.Split(line, " ")
+			num, err := strconv.Atoi(lexes[0])
+			if err != nil {
+				return 0, fmt.Errorf("failed to extract line number from '%s'", line)
+			}
+			return num, nil
+		}
+	}
+	return 0, ErrRuleNotFound
 }
 
 func portForwardRule(fromPort, toPort int) string {
