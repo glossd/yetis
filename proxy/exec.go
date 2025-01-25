@@ -50,7 +50,7 @@ func UpdatePortForwarding(fromPort, oldToPort, newToPort int) error {
 }
 
 func getLine(fromPort, toPort int) (int, error) {
-	output, err := exec.Command("iptables -t nat -L OUTPUT --line-numbers").Output()
+	output, err := exec.Command("iptables", strings.Split("-t nat -L OUTPUT --line-numbers", " ")...).Output()
 	if err != nil {
 		return 0, fmt.Errorf("failed to list iptables rules: %s", err)
 	}

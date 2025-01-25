@@ -91,7 +91,7 @@ func main() {
 			needName()
 			return
 		}
-		client.DeleteDeployment(os.Args[2])
+		client.DescribeDeployment(os.Args[2])
 	case "delete":
 		if len(os.Args) < 3 {
 			needName()

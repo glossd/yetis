@@ -113,7 +113,7 @@ func preventSignalInterrupt() {
 	}()
 }
 
-func DescribeDeployment(name string) (server.GetResponse, error) {
+func DescribeDeployment(name string) {
 	versionsWarning()
 	r, err := GetDeployment(name)
 	if err != nil {
@@ -132,7 +132,6 @@ func DescribeDeployment(name string) (server.GetResponse, error) {
 		buf.Write(c)
 		fmt.Println(buf.String())
 	}
-	return r, nil
 }
 
 func GetDeployment(name string) (server.GetResponse, error) {

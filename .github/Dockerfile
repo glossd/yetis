@@ -1,6 +1,6 @@
 FROM golang:1.23
 RUN apt update
-RUN apt install -y lsof netcat-traditional
+RUN apt install -y lsof netcat-traditional iptables
 CMD ["/bin/bash"]
 
 

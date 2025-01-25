@@ -9,9 +9,5 @@ spec:
     periodSeconds: 0.1
     failureThreshold: 2
     successThreshold: 1
----
-kind: Service
-spec:
-  port: 27000
-  selector:
-    name: go
+  proxy:
+    port: 27000

@@ -25,6 +25,7 @@ import (
 //
 //	server_test.go:42: before first healthcheck: expected Pending status, got Running, restarts 0
 func TestLivenessRestart(t *testing.T) {
+	unix.KillByPort(server.YetisServerPort, true)
 	go server.Run()
 	t.Cleanup(server.Stop)
 	// let the server start
@@ -105,37 +106,27 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 	}
 }
 
-func TestServiceUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
+func TestProxyUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 	go server.Run()
 	t.Cleanup(server.Stop)
 	// let the server start
 	time.Sleep(5 * time.Millisecond)
 
-	errs := client.Apply(pwd(t) + "/specs/main-with-service.yaml")
+	errs := client.Apply(pwd(t) + "/specs/main-proxy.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
 
-	deps, err := fetch.Get[[]server.DeploymentView]("/deployments")
+	dep, err := client.GetDeployment("go")
 	if err != nil {
 		t.Fatal(err)
-	}
-	if len(deps) != 1 {
-		t.Fatalf("got deployments: %v", deps)
-	}
-	sers, err := fetch.Get[[]server.ServiceView]("/services")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(sers) != 1 {
-		t.Fatalf("got services: %v", sers)
 	}
 
-	if !common.IsPortOpenRetry(sers[0].Port, 50*time.Millisecond, 20) {
-		t.Fatal("service port closed", sers[0].Port)
+	if !common.IsPortOpenRetry(dep.Spec.YetisPort(), 50*time.Millisecond, 20) {
+		t.Fatal("deployment port closed", dep.Spec.YetisPort())
 	}
-	if !common.IsPortOpenRetry(sers[0].DeploymentPort, 50*time.Millisecond, 20) {
-		t.Fatal("deployment port closed", sers[0].DeploymentPort)
+	if !common.IsPortOpenRetry(dep.Spec.Proxy.Port, 50*time.Millisecond, 20) {
+		t.Fatal("port forwarding closed", dep.Spec.Proxy.Port)
 	}
 
 	checkOK := func() {
@@ -150,26 +141,25 @@ func TestServiceUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 	}
 	checkOK()
 
-	err = unix.KillByPort(deps[0].LivenessPort, true)
+	err = unix.KillByPort(dep.Spec.YetisPort(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// for some insane reason the first call from within the test after killing the deployment can't connect to the tcp proxy.
-	// here the real error should be "Connection reset by peer" not the timeout.
+
 	_, err = fetch.Get[string]("http://localhost:27000/hello", fetch.Config{Timeout: 10 * time.Millisecond})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Error("expected context deadline, got", err)
 	}
-	for {
-		deps, err := fetch.Get[[]server.DeploymentView]("/deployments")
+	forTimeout(time.Second, func() bool {
+		dep, err := client.GetDeployment("go")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if deps[0].Restarts == 1 {
-			break
+		if dep.Restarts == 1 {
+			return false
 		}
-		time.Sleep(20 * time.Millisecond)
-	}
+		return true
+	})
 
 	newDeps, err := server.ListDeployment()
 	if err != nil {
@@ -178,7 +168,7 @@ func TestServiceUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 	if len(newDeps) != 1 {
 		t.Fatalf("expected one go deployment, got=%v", newDeps)
 	}
-	if deps[0].LivenessPort == newDeps[0].LivenessPort {
+	if dep.Spec.YetisPort() == newDeps[0].LivenessPort {
 		t.Fatal("same deployment port, no restart")
 	}
 	if !common.IsPortOpenRetry(newDeps[0].LivenessPort, 50*time.Millisecond, 20) {
