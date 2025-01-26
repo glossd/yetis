@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestCreatePortForwarding(t *testing.T) {
+func TestPortForwarding(t *testing.T) {
 	port := 4567
 	unix.KillByPort(port, true)
 
@@ -31,8 +31,6 @@ func TestCreatePortForwarding(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer DeletePortForwarding(port, targetPort)
-
 	if !common.IsPortOpenRetry(port, 50*time.Millisecond, 30) {
 		t.Fatal("proxy's port is closed")
 	}
@@ -42,6 +40,14 @@ func TestCreatePortForwarding(t *testing.T) {
 	}
 	if res != "OK" {
 		t.Fatal("failed to proxy to http server")
+	}
+
+	err = DeletePortForwarding(port, targetPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if common.IsPortOpenRetry(port, 50*time.Millisecond, 30) {
+		t.Fatal("proxy's port should be closed")
 	}
 }
 
