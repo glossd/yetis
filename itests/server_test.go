@@ -1,7 +1,6 @@
 package itests
 
 import (
-	"context"
 	"errors"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/client"
@@ -13,6 +12,7 @@ import (
 	"os/exec"
 	"strconv"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -31,7 +31,7 @@ func TestLivenessRestart(t *testing.T) {
 	// let the server start
 	time.Sleep(time.Millisecond)
 
-	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
+	errs := client.Apply(pwd(t) + "/specs/simple-app-port.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
@@ -55,9 +55,8 @@ func TestLivenessRestart(t *testing.T) {
 		})
 	}
 
-	// initDelay 0.1 seconds
 	checkSR("before first heartbeat", server.Pending, 0)
-	time.Sleep(125 * time.Millisecond)
+	time.Sleep(1125 * time.Millisecond) // initDelay 1 second
 	checkSR("after first heartbeat", server.Running, 0)
 
 	err := unix.KillByPort(27000, true)
@@ -67,7 +66,7 @@ func TestLivenessRestart(t *testing.T) {
 	time.Sleep(95 * time.Millisecond)
 	checkSR("after second heartbeat", server.Running, 0)
 
-	time.Sleep(150 * time.Millisecond) // 50 millies for it to restart
+	time.Sleep(200 * time.Millisecond)
 	check(func(r server.GetResponse) {
 		if r.Restarts != 1 {
 			t.Fatal("expected a restart")
@@ -89,17 +88,17 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 	if !common.IsPortOpenRetry(server.YetisServerPort, 50*time.Millisecond, 20) {
 		t.Fatal("yetis server hasn't started")
 	}
-	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
+	errs := client.Apply(pwd(t) + "/specs/simple-app-port.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
 
 	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 30) {
-		t.Fatal("nc haven't started")
+		t.Fatal("main haven't started")
 	}
 	client.ShutdownServer(100 * time.Millisecond)
 	if common.IsPortOpenRetry(27000, 50*time.Millisecond, 10) {
-		t.Fatal("nc should've stopped")
+		t.Fatal("main should've stopped")
 	}
 	if common.IsPortOpenRetry(server.YetisServerPort, 50*time.Millisecond, 10) {
 		t.Fatal("server should've stopped")
@@ -147,8 +146,8 @@ func TestProxyUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 	}
 
 	_, err = fetch.Get[string]("http://localhost:27000/hello", fetch.Config{Timeout: 10 * time.Millisecond})
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Error("expected context deadline, got", err)
+	if !errors.Is(err, syscall.ECONNREFUSED) {
+		t.Error("expected  connection refused, got", err)
 	}
 	forTimeout(time.Second, func() bool {
 		dep, err := client.GetDeployment("go")

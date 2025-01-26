@@ -3,7 +3,7 @@ compile:
 	GOOS=linux GOARCH=amd64 go build -o yetis main.go && chmod +x yetis && mv yetis build/
 
 test:
-	docker run --rm -v $$PWD:/usr/src/myapp -w /usr/src/myapp glossd/goyetis:0.3 go test github.com/glossd/yetis/itests -run TestLivenessRestart
+	docker run --privileged --rm -v $$PWD:/usr/src/myapp -w /usr/src/myapp glossd/goyetis:0.3 go test -v ./...
 
 docker-sh:
 	docker run -it --privileged --rm -v $$PWD:/usr/src/myapp -w /usr/src/myapp glossd/goyetis:0.3 bash

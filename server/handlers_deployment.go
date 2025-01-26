@@ -15,6 +15,11 @@ import (
 
 func PostDeployment(req fetch.Request[common.DeploymentSpec]) error {
 	spec := req.Body
+	if spec.Strategy.Type == common.Recreate {
+		if spec.Proxy.Port == 0 && spec.LivenessProbe.Port() == 0 {
+			return fmt.Errorf("either livenessProbe.tcpSocket.port or proxy.port must be specified for Recreate strategy")
+		}
+	}
 	if spec.Strategy.Type == common.RollingUpdate {
 		// check the name was upgraded
 		var err error
