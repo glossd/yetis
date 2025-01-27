@@ -13,6 +13,10 @@ test_only_iptables:
 	docker run --privileged --rm -v $$PWD:/usr/src/myapp -w /usr/src/myapp -v /var/run/docker.sock:/var/run/docker.sock glossd/goyetis:0.3-amd\
  sh -c "export TEST_IPTABLES=true; go test -v ./itests/iptables_test.go; go test -v ./proxy/..."
 
+test_one_iptables:
+	docker run --privileged --rm -v $$PWD:/usr/src/myapp -w /usr/src/myapp -v /var/run/docker.sock:/var/run/docker.sock glossd/goyetis:0.3-amd\
+ sh -c "export TEST_IPTABLES=true; go test -v ./... -run $(run)"
+
 docker-sh:
 	docker run -it --privileged --rm -v $$PWD:/usr/src/myapp -w /usr/src/myapp glossd/goyetis:0.3.1 bash
 

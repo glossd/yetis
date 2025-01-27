@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
@@ -23,7 +24,12 @@ func TestPortForwarding(t *testing.T) {
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
 	})
-	go http.ListenAndServe(fmt.Sprintf(":%d", targetPort), mux)
+	go func() {
+		err := http.ListenAndServe(fmt.Sprintf(":%d", targetPort), mux)
+		if err != nil {
+			t.Error(err)
+		}
+	}()
 	if !common.IsPortOpenRetry(targetPort, 50*time.Millisecond, 30) {
 		t.Fatal("target port should be open")
 	}
@@ -55,41 +61,52 @@ func TestPortForwarding(t *testing.T) {
 
 func TestUpdatePortForwarding(t *testing.T) {
 	skipIfNotIptables(t)
-	port := 4567
-	fakeDeploymentPort := 45678
-	err := CreatePortForwarding(port, fakeDeploymentPort)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !common.IsPortOpenRetry(port, 50*time.Millisecond, 20) {
-		t.Fatal("service hasn't started")
-	}
+	firstServerPort := 25465
+	secondServerPort := 15465
+	mux := &http.ServeMux{}
+	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte(`Hello World`))
+	})
 
-	secondPort := 45679
-	go func() {
-		mux := &http.ServeMux{}
-		mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("OK"))
-		})
-		(&http.Server{Addr: fmt.Sprintf(":%d", secondPort), Handler: mux}).ListenAndServe()
-	}()
-	if !common.IsPortOpenRetry(secondPort, 50*time.Millisecond, 20) {
-		t.Fatal("second deployment port should be open")
-	}
+	firstServer := http.Server{Addr: fmt.Sprintf(":%d", firstServerPort), Handler: mux}
+	go firstServer.ListenAndServe()
+	go http.ListenAndServe(fmt.Sprintf(":%d", secondServerPort), mux)
+	proxyPort := 24636
 
-	err = UpdatePortForwarding(port, fakeDeploymentPort, secondPort)
+	err := CreatePortForwarding(proxyPort, firstServerPort)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	res, err := fetch.Get[string](fmt.Sprintf("http://localhost:%d/hello", port), fetch.Config{Timeout: time.Second})
+	if !common.IsPortOpenRetry(proxyPort, 10*time.Millisecond, 10) {
+		t.Fatal("proxy port is closed")
+	}
+	checkOK := func() {
+		res, err := fetch.Get[string](fmt.Sprintf("http://localhost:%d/hello", proxyPort))
+		if err != nil {
+			t.Error(err)
+		}
+		if res != `Hello World` {
+			t.Errorf("wrong body, got %s", res)
+		}
+	}
+	checkOK()
+	for i := 0; i < 10; i++ {
+		go func() {
+			for {
+				checkOK()
+			}
+		}()
+	}
+
+	err = UpdatePortForwarding(proxyPort, firstServerPort, secondServerPort)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res != "OK" {
-		t.Fatal("failed to proxy to http server")
-	}
+	checkOK()
+	firstServer.Shutdown(context.Background())
+	time.Sleep(100 * time.Millisecond) // let the goroutines do the work
 }
 
 func TestExtractLineNumber(t *testing.T) {
