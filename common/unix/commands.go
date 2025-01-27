@@ -106,6 +106,9 @@ func KillByPort(port int, wait bool) error {
 	if err != nil {
 		return err
 	}
+	if !wait {
+		return Kill(pid)
+	}
 	proc, err := os.FindProcess(pid)
 	if err != nil {
 		return err
@@ -114,10 +117,13 @@ func KillByPort(port int, wait bool) error {
 	if err != nil {
 		return err
 	}
-	if wait {
-		proc.Wait()
-	}
+	proc.Wait()
+
 	return nil
+}
+
+func Kill(pid int) error {
+	return exec.Command("kill", "-9", strconv.Itoa(pid)).Start()
 }
 
 func Cat(filePath string, stream bool) error {

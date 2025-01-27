@@ -46,6 +46,23 @@ func TestTerminateProcess(t *testing.T) {
 	}
 }
 
+func TestKill(t *testing.T) {
+	cmd := exec.Command("sleep", "10")
+	err := cmd.Start()
+	if err != nil {
+		t.Fatalf("error launching process: %s", err)
+	}
+
+	pid := cmd.Process.Pid
+	err = Kill(pid)
+	if err != nil {
+		t.Fatalf("failed to terminated the process: %s", err)
+	}
+	if IsProcessAlive(pid) {
+		t.Fatal("should've been killed")
+	}
+}
+
 func TestIsPortOpen(t *testing.T) {
 	s := http.Server{Addr: ":44534"}
 	go s.ListenAndServe()

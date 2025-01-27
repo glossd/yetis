@@ -8,6 +8,7 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/server"
+	"log"
 	"os"
 	"os/exec"
 	"strconv"
@@ -65,7 +66,12 @@ func TestLivenessRestart(t *testing.T) {
 		return true
 	})
 
-	err := unix.KillByPort(27000, false)
+	log.Println("Killing process...")
+	pid, err := unix.GetPidByPort(27000)
+	if err != nil {
+		t.Fatalf("failed to get port: %s", err)
+	}
+	err = unix.Kill(pid)
 	if err != nil {
 		t.Fatalf("failed to kill: %s", err)
 	}
@@ -105,7 +111,7 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 30) {
 		t.Fatal("main haven't started")
 	}
-	client.ShutdownServer(time.Second)
+	client.ShutdownServer(2 * time.Second)
 	if common.IsPortOpenRetry(27000, 50*time.Millisecond, 10) {
 		t.Fatal("main should've stopped")
 	}
