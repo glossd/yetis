@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net"
 )
@@ -12,6 +13,7 @@ func main() {
 	}
 	defer ln.Close()
 
+	fmt.Println("static main: Starting to listen to tcp connections on 27000")
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
