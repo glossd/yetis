@@ -31,13 +31,13 @@ func TestLivenessRestart(t *testing.T) {
 	// let the server start
 	time.Sleep(time.Millisecond)
 
-	errs := client.Apply(pwd(t) + "/specs/simple-app-port.yaml")
+	errs := client.Apply(pwd(t) + "/specs/static.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
 
 	check := func(f func(server.GetResponse)) {
-		dr, err := fetch.Get[server.GetResponse]("/deployments/hello")
+		dr, err := client.GetDeployment("hello")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -56,21 +56,28 @@ func TestLivenessRestart(t *testing.T) {
 	}
 
 	checkSR("before first heartbeat", server.Pending, 0)
-	time.Sleep(1125 * time.Millisecond) // initDelay 1 second
-	checkSR("after first heartbeat", server.Running, 0)
+	forTimeout(t, 3*time.Second, func() bool {
+		d, err := client.GetDeployment("hello")
+		assert(t, err, nil)
+		if d.Status == server.Running.String() {
+			return false
+		}
+		return true
+	})
 
 	err := unix.KillByPort(27000, true)
 	if err != nil {
 		t.Fatalf("failed to kill: %s", err)
 	}
-	time.Sleep(95 * time.Millisecond)
-	checkSR("after second heartbeat", server.Running, 0)
+	checkSR("needs two heartbeat failures to restart", server.Running, 0)
 
-	time.Sleep(200 * time.Millisecond)
-	check(func(r server.GetResponse) {
-		if r.Restarts != 1 {
-			t.Fatal("expected a restart")
+	forTimeout(t, 2*time.Second, func() bool {
+		d, err := client.GetDeployment("hello")
+		assert(t, err, nil)
+		if d.Restarts == 1 {
+			return false
 		}
+		return true
 	})
 	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 20) {
 		t.Fatal("deployment port should be open after restart")
@@ -80,15 +87,17 @@ func TestLivenessRestart(t *testing.T) {
 func TestShutdown_DeleteDeployments(t *testing.T) {
 	cmd := exec.Command("go", "run", "main.go", "run")
 	cmd.Dir = ".."
-	cmd.Stdout = os.Stdout
 	if cmd.Start() != nil {
 		t.Fatal("failed to start Yetis")
 	}
+	t.Cleanup(func() {
+		cmd.Process.Kill()
+	})
 
-	if !common.IsPortOpenRetry(server.YetisServerPort, 50*time.Millisecond, 20) {
+	if !common.IsPortOpenRetry(server.YetisServerPort, 50*time.Millisecond, 30) {
 		t.Fatal("yetis server hasn't started")
 	}
-	errs := client.Apply(pwd(t) + "/specs/simple-app-port.yaml")
+	errs := client.Apply(pwd(t) + "/specs/static.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
@@ -96,7 +105,7 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 30) {
 		t.Fatal("main haven't started")
 	}
-	client.ShutdownServer(100 * time.Millisecond)
+	client.ShutdownServer(time.Second)
 	if common.IsPortOpenRetry(27000, 50*time.Millisecond, 10) {
 		t.Fatal("main should've stopped")
 	}
@@ -149,7 +158,7 @@ func TestProxyUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 	if !errors.Is(err, syscall.ECONNREFUSED) {
 		t.Error("expected  connection refused, got", err)
 	}
-	forTimeout(time.Second, func() bool {
+	forTimeout(t, 2*time.Second, func() bool {
 		dep, err := client.GetDeployment("go")
 		if err != nil {
 			t.Fatal(err)
@@ -284,7 +293,7 @@ func pwd(t *testing.T) string {
 }
 
 func checkDeploymentRunning(t *testing.T, name string) {
-	forTimeout(5*time.Second, func() bool {
+	forTimeout(t, 5*time.Second, func() bool {
 		dep, err := client.GetDeployment(name)
 		if err != nil {
 			t.Fatal(err)
@@ -297,7 +306,7 @@ func checkDeploymentRunning(t *testing.T, name string) {
 }
 
 func checkDeploymentRestarted(t *testing.T, name string) {
-	forTimeout(5*time.Second, func() bool {
+	forTimeout(t, 5*time.Second, func() bool {
 		dep, err := client.GetDeployment(name)
 		if err != nil {
 			t.Fatal(err)
@@ -310,16 +319,26 @@ func checkDeploymentRestarted(t *testing.T, name string) {
 }
 
 // return false to break the loop.
-func forTimeout(timeout time.Duration, apply func() bool) {
+func forTimeout(t *testing.T, timeout time.Duration, apply func() bool) {
 	ch := time.After(timeout)
 loop:
 	for {
 		select {
 		case <-ch:
+			t.Helper()
+			t.Fatal("forTimeout timeout")
 		default:
 			if !apply() {
 				break loop
 			}
 		}
+	}
+}
+
+func assert[T comparable](t *testing.T, got, want T) {
+	t.Helper()
+
+	if got != want {
+		t.Fatalf("got %v, wanted %v", got, want)
 	}
 }

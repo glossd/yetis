@@ -156,7 +156,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		}
 
 		_ = updateDeployment(newSpec, 0, "", false)
-		pid, logPath, err := launchProcess(newSpec)
+		pid, logPath, err := launchProcess(newSpec, false)
 		if err != nil {
 			log.Printf("Liveness failed to restart deployment '%s': %s\n", newSpec.Name, err)
 		}

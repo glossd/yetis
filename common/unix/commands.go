@@ -39,9 +39,10 @@ func TerminateProcess(ctx context.Context, pid int) error {
 		case <-ctx.Done():
 			err = process.Signal(syscall.SIGKILL)
 			if err != nil {
-				log.Printf("failed to kill %d process: %s\n", pid, err)
+				log.Printf("context deadline exceeded but failed to kill %d process: %s\n", pid, err)
+				return err
 			}
-			return nil
+			return context.DeadlineExceeded
 		default:
 			if !IsProcessAlive(process.Pid) {
 				return nil

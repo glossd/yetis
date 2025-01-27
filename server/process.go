@@ -17,9 +17,9 @@ import (
 
 var logNamePattern = regexp.MustCompile("^[a-zA-Z]+-(\\d+).log$")
 
-func launchProcess(c common.DeploymentSpec) (pid int, logPath string, err error) {
+func launchProcess(c common.DeploymentSpec, wait bool) (pid int, logPath string, err error) {
 	if c.Logdir == "stdout" {
-		pid, err = launchProcessWithOut(c, nil, false)
+		pid, err = launchProcessWithOut(c, nil, wait)
 		return pid, "stdout", err
 	} else {
 		logName := c.Name + "-" + strconv.Itoa(getLogCounter(c.Name, c.Logdir)+1) + ".log"
@@ -29,7 +29,7 @@ func launchProcess(c common.DeploymentSpec) (pid int, logPath string, err error)
 			return 0, "", fmt.Errorf("failed to create log file for '%s': %s", c.Name, err)
 		}
 		// todo close the file
-		pid, err = launchProcessWithOut(c, file, false)
+		pid, err = launchProcessWithOut(c, file, wait)
 		return pid, fullPath, err
 	}
 }
@@ -129,11 +129,11 @@ func getLogCounter(name, logDir string) int {
 func terminateProcess(ctx context.Context, r resource) error {
 	if r.getPid() != 0 {
 		err := unix.TerminateProcess(ctx, r.getPid())
-		if err != nil {
+		if err != nil && err != context.DeadlineExceeded {
 			return err
 		}
 	}
 	// todo instead of killing by port, terminate function should terminate all children as well.
-	unix.KillByPort(r.getPort(), true)
+	unix.KillByPort(r.getPort(), false)
 	return nil
 }

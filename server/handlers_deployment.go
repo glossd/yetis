@@ -77,7 +77,7 @@ func startDeploymentWithEnv(spec common.DeploymentSpec, upsert bool) (common.Dep
 	if !saved {
 		return spec, fmt.Errorf("deployment '%s' already exists", spec.Name)
 	}
-	pid, logPath, err := launchProcess(spec)
+	pid, logPath, err := launchProcess(spec, false)
 	if err != nil {
 		deleteDeployment(spec.Name)
 		return spec, err

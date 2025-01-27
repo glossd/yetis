@@ -1,11 +1,8 @@
 spec:
   name: hello
-  preCmd: go build -o main cmd/appport/main.go
+  preCmd: go build -o main cmd/static/main.go
   cmd: ./main
   logdir: stdout
-  env:
-    - name: APP_PORT
-      value: "27000"
   livenessProbe:
     tcpSocket:
       port: 27000

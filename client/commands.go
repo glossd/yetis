@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
@@ -208,14 +207,47 @@ func ShutdownServer(timeout time.Duration) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	err = unix.TerminateProcess(ctx, pid)
+	process, err := os.FindProcess(pid)
 	if err != nil {
-		fmt.Println("Failed to stop Yetis server", err)
-	} else {
-		fmt.Println("Yetis server stopped.")
+		fmt.Printf("Couldn't find Yetis process %d: %s\n", pid, err)
 	}
+
+	err = process.Signal(syscall.SIGTERM)
+	if err != nil {
+		fmt.Printf("Failed to terminate %d server: %s\n", pid, err)
+	}
+	after := time.After(timeout)
+loop:
+	for {
+		select {
+		case <-after:
+			if !IsServerRunning() {
+				break loop
+			}
+			err := process.Signal(syscall.SIGINT)
+			if err != nil {
+				fmt.Printf("Failed to terminate %d server rapidly: %s\n", pid, err)
+			}
+			time.Sleep(50 * time.Millisecond) // let server kill all deployments
+			err = process.Kill()
+			if err != nil {
+				fmt.Printf("Failed to kill %d server rapidly: %s\n", pid, err)
+			}
+			if common.IsPortOpenRetry(server.YetisServerPort, 30*time.Millisecond, 20) {
+				fmt.Println("Failed to kill Yetis server")
+			} else {
+				fmt.Println("Yetis server killed.")
+			}
+			return
+		default:
+			if IsServerRunning() {
+				continue loop
+			} else {
+				break loop
+			}
+		}
+	}
+	fmt.Println("Yetis server stopped.")
 }
 
 func versionsWarning() {
