@@ -67,3 +67,18 @@ func GetFreePort() (port int, err error) {
 	}
 	return
 }
+
+func MustGetFreePort() int {
+	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		panic("ResolveTCPAddr: " + err.Error())
+	}
+	var l *net.TCPListener
+	l, err = net.ListenTCP("tcp", a)
+	if err != nil {
+		panic("ListenTCP: " + err.Error())
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	return port
+}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
-	"github.com/glossd/yetis/common/unix"
 	"net/http"
 	"os"
 	"testing"
@@ -14,10 +13,8 @@ import (
 
 func TestPortForwarding(t *testing.T) {
 	skipIfNotIptables(t)
-	port := 4567
-	targetPort := 45678
-	unix.KillByPort(port, true)
-	unix.KillByPort(targetPort, true)
+	port := common.MustGetFreePort()
+	targetPort := common.MustGetFreePort()
 
 	mux := &http.ServeMux{}
 	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
@@ -61,8 +58,8 @@ func TestPortForwarding(t *testing.T) {
 
 func TestUpdatePortForwarding(t *testing.T) {
 	skipIfNotIptables(t)
-	firstServerPort := 25465
-	secondServerPort := 15465
+	firstServerPort := common.MustGetFreePort()
+	secondServerPort := common.MustGetFreePort()
 	mux := &http.ServeMux{}
 	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -72,7 +69,7 @@ func TestUpdatePortForwarding(t *testing.T) {
 	firstServer := http.Server{Addr: fmt.Sprintf(":%d", firstServerPort), Handler: mux}
 	go firstServer.ListenAndServe()
 	go http.ListenAndServe(fmt.Sprintf(":%d", secondServerPort), mux)
-	proxyPort := 24636
+	proxyPort := common.MustGetFreePort()
 
 	err := CreatePortForwarding(proxyPort, firstServerPort)
 	if err != nil {
