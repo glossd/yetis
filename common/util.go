@@ -40,6 +40,20 @@ func IsPortOpenRetry(port int, period time.Duration, maxRestarts int) bool {
 	return IsPortOpenRetry(port, period, maxRestarts-1)
 }
 
+func IsPortCloseRetry(port int, period time.Duration, maxRestarts int) bool {
+	if maxRestarts == 0 {
+		return false
+	}
+	err := DialPort(port, period)
+	if err != nil {
+		return true
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		time.Sleep(period)
+	}
+	return IsPortCloseRetry(port, period, maxRestarts-1)
+}
+
 // GetFreePort asks the kernel for a free open port that is ready to use.
 // https://gist.github.com/sevkin/96bdae9274465b2d09191384f86ef39d
 func GetFreePort() (port int, err error) {
