@@ -65,7 +65,7 @@ func TestLivenessRestart(t *testing.T) {
 		return true
 	})
 
-	err := unix.KillByPort(27000, true)
+	err := unix.KillByPort(27000, false)
 	if err != nil {
 		t.Fatalf("failed to kill: %s", err)
 	}
