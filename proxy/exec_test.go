@@ -6,11 +6,13 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestPortForwarding(t *testing.T) {
+	skipIfNotIptables(t)
 	port := 4567
 	unix.KillByPort(port, true)
 
@@ -52,6 +54,7 @@ func TestPortForwarding(t *testing.T) {
 }
 
 func TestUpdatePortForwarding(t *testing.T) {
+	skipIfNotIptables(t)
 	port := 4567
 	fakeDeploymentPort := 45678
 	err := CreatePortForwarding(port, fakeDeploymentPort)
@@ -101,5 +104,11 @@ num target     prot opt  source       destination
 	}
 	if num != 1 {
 		t.Fatal("num mismatch")
+	}
+}
+
+func skipIfNotIptables(t *testing.T) {
+	if os.Getenv("TEST_IPTABLES") == "" {
+		t.SkipNow()
 	}
 }
