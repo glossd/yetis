@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -64,26 +65,28 @@ func TestKill(t *testing.T) {
 }
 
 func TestIsPortOpen(t *testing.T) {
-	s := http.Server{Addr: ":44534"}
+	port := common.MustGetFreePort()
+	s := http.Server{Addr: ":" + strconv.Itoa(port)}
 	go s.ListenAndServe()
 	defer s.Shutdown(context.Background())
 	time.Sleep(time.Millisecond)
-	if !common.IsPortOpen(44534) {
-		t.Errorf("port shouldn't be closed")
+	if !common.IsPortOpen(port) {
+		t.Errorf("port should be open")
 	}
 
-	if common.IsPortOpen(34567) {
+	if common.IsPortOpen(34567) { // some random port, there is a possibility it's open
 		t.Errorf("port shouldn't be open")
 	}
 }
 
 func TestGetPidByPort(t *testing.T) {
-	s := http.Server{Addr: ":44534"}
+	port := common.MustGetFreePort()
+	s := http.Server{Addr: ":" + strconv.Itoa(port)}
 	go s.ListenAndServe()
 	defer s.Shutdown(context.Background())
 	time.Sleep(10 * time.Millisecond)
 
-	pid, err := GetPidByPort(44534)
+	pid, err := GetPidByPort(port)
 	if err != nil {
 		t.Errorf("port is closed: %s", err)
 	}
