@@ -5,7 +5,9 @@ import (
 	"github.com/glossd/yetis/client"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/server"
+	"log"
 	"os"
+	"os/user"
 	"strconv"
 	"time"
 )
@@ -37,6 +39,13 @@ func main() {
 		// starts Yetis server in the foreground
 		server.Run()
 	case "start":
+		currentUser, err := user.Current()
+		if err != nil {
+			log.Fatalf("Unable to get current user: %s\n", err)
+		}
+		if currentUser.Username != "root" {
+			log.Println("Warning: not running as root, Yetis won't be to create a proxy")
+		}
 		logdir := "/tmp"
 		if len(args) > 3 {
 			if args[2] == "-d" {
@@ -140,7 +149,7 @@ Server Commands:
 	info                    print server status
 Resources Commands:
 	apply -f FILENAME       apply a configuration from yaml file
-	list                    print a list the managed deployment
+	list [-w]               print a list the managed deployment
 	logs [-f] NAME          print the logs of the deployment with NAME
 	describe NAME           print a detailed description of the selected deployment
 	delete NAME             delete the deployment, terminating its process
