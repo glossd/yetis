@@ -9,7 +9,7 @@ import (
 
 func TestInfo(t *testing.T) {
 	go server.Run()
-	defer server.Stop()
+	t.Cleanup(server.Stop)
 	time.Sleep(5 * time.Millisecond)
 	res, err := fetch.Get[server.InfoResponse](baseHost + "/info")
 	assert(t, err, nil)

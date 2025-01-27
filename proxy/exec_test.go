@@ -5,44 +5,37 @@ import (
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
-	"github.com/glossd/yetis/common/unix"
 	"net/http"
 	"os"
-	"os/signal"
 	"testing"
 	"time"
 )
 
-func TestExec(t *testing.T) {
-	port := 4567
-	unix.KillByPort(port, true)
-
-	targetPort := 45678
+func TestPortForwarding(t *testing.T) {
+	skipIfNotIptables(t)
+	port := common.MustGetFreePort()
+	targetPort := common.MustGetFreePort()
 
 	mux := &http.ServeMux{}
 	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))
 	})
-	go http.ListenAndServe(fmt.Sprintf(":%d", targetPort), mux)
-	if !common.IsPortOpenRetry(targetPort, 50*time.Millisecond, 20) {
+	go func() {
+		err := http.ListenAndServe(fmt.Sprintf(":%d", targetPort), mux)
+		if err != nil {
+			t.Error(err)
+		}
+	}()
+	if !common.IsPortOpenRetry(targetPort, 50*time.Millisecond, 30) {
 		t.Fatal("target port should be open")
 	}
-	for i := 0; i < 10; i++ {
-		fmt.Println("Attempt", i)
-		run(t, port, targetPort)
-	}
-}
 
-func run(t *testing.T, port, targetPort int) {
-	pid, httpPort, err := Exec(port, targetPort, "/tmp/exec.log")
+	err := CreatePortForwarding(port, targetPort)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer unix.TerminateProcessTimeout(pid, time.Second)
-	if pid <= 0 {
-		t.Fatalf("got pid: %d", pid)
-	}
+
 	if !common.IsPortOpenRetry(port, 50*time.Millisecond, 30) {
 		t.Fatal("proxy's port is closed")
 	}
@@ -53,66 +46,83 @@ func run(t *testing.T, port, targetPort int) {
 	if res != "OK" {
 		t.Fatal("failed to proxy to http server")
 	}
-	if !common.IsPortOpenRetry(httpPort, 50*time.Millisecond, 20) {
-		t.Fatal("http port is closed")
+
+	err = DeletePortForwarding(port, targetPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if common.IsPortOpenRetry(port, 50*time.Millisecond, 30) {
+		t.Fatal("proxy's port should be closed")
 	}
 }
 
-func TestExecChangePort(t *testing.T) {
-	port := 4567
-	fakeDeploymentPort := 45678
-	_, httpPort, err := Exec(port, fakeDeploymentPort, "/tmp/exec-test.log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !common.IsPortOpenRetry(port, 50*time.Millisecond, 20) {
-		t.Fatal("service hasn't started")
-	}
+func TestUpdatePortForwarding(t *testing.T) {
+	skipIfNotIptables(t)
+	firstServerPort := common.MustGetFreePort()
+	secondServerPort := common.MustGetFreePort()
+	mux := &http.ServeMux{}
+	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte(`Hello World`))
+	})
 
-	secondPort := 45679
-	go func() {
-		mux := &http.ServeMux{}
-		mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("OK"))
-		})
-		(&http.Server{Addr: fmt.Sprintf(":%d", secondPort), Handler: mux}).ListenAndServe()
-	}()
-	if !common.IsPortOpenRetry(secondPort, 50*time.Millisecond, 20) {
-		t.Fatal("second deployment port should be open")
-	}
+	firstServer := http.Server{Addr: fmt.Sprintf(":%d", firstServerPort), Handler: mux}
+	go firstServer.ListenAndServe()
+	go http.ListenAndServe(fmt.Sprintf(":%d", secondServerPort), mux)
+	proxyPort := common.MustGetFreePort()
 
-	_, err = fetch.Post[fetch.Empty](fmt.Sprintf("http://localhost:%d/update", httpPort), secondPort)
+	err := CreatePortForwarding(proxyPort, firstServerPort)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	res, err := fetch.Get[string](fmt.Sprintf("http://localhost:%d/hello", port), fetch.Config{Timeout: time.Second})
-	if err != nil {
-		t.Fatal(err)
+	if !common.IsPortOpenRetry(proxyPort, 10*time.Millisecond, 10) {
+		t.Fatal("proxy port is closed")
 	}
-	if res != "OK" {
-		t.Fatal("failed to proxy to http server")
-	}
-}
-
-func startServer(mux *http.ServeMux, port int, stop chan os.Signal) {
-	server := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
-
-	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			// handle err
+	checkOK := func() {
+		res, err := fetch.Get[string](fmt.Sprintf("http://localhost:%d/hello", proxyPort))
+		if err != nil {
+			t.Error(err)
 		}
-	}()
+		if res != `Hello World` {
+			t.Errorf("wrong body, got %s", res)
+		}
+	}
+	checkOK()
+	for i := 0; i < 10; i++ {
+		go func() {
+			for {
+				checkOK()
+			}
+		}()
+	}
 
-	signal.Notify(stop, os.Interrupt)
+	err = UpdatePortForwarding(proxyPort, firstServerPort, secondServerPort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkOK()
+	firstServer.Shutdown(context.Background())
+	time.Sleep(100 * time.Millisecond) // let the goroutines do the work
+}
 
-	// Waiting for SIGINT (kill -2)
-	<-stop
+func TestExtractLineNumber(t *testing.T) {
+	output := `
+Chain OUTPUT (policy ACCEPT)
+num target     prot opt  source       destination
+1   REDIRECT   tcp  --   anywhere     anywhere          tcp dpt:1024 redir ports 8080
+`
+	num, err := extractLine(output, 1024, 8080)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if num != 1 {
+		t.Fatal("num mismatch")
+	}
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := server.Shutdown(ctx); err != nil {
-		// handle err
+func skipIfNotIptables(t *testing.T) {
+	if os.Getenv("TEST_IPTABLES") == "" {
+		t.SkipNow()
 	}
 }

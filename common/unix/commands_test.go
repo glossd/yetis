@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -18,7 +19,6 @@ func TestIsProcessAlive(t *testing.T) {
 		t.Fatalf("error launching process: %s", err)
 	}
 	pid := cmd.Process.Pid
-	time.Sleep(5 * time.Millisecond)
 	if !IsProcessAlive(pid) {
 		t.Fatal("process should exist")
 	}
@@ -26,7 +26,7 @@ func TestIsProcessAlive(t *testing.T) {
 		t.Fatal("pid shouldn't exist") // probs:)
 	}
 
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(35 * time.Millisecond)
 	if IsProcessAlive(pid) {
 		t.Fatal("sleep should have terminated")
 	}
@@ -46,27 +46,46 @@ func TestTerminateProcess(t *testing.T) {
 	}
 }
 
+func TestKill(t *testing.T) {
+	cmd := exec.Command("sleep", "10")
+	err := cmd.Start()
+	if err != nil {
+		t.Fatalf("error launching process: %s", err)
+	}
+
+	pid := cmd.Process.Pid
+	err = Kill(pid)
+	if err != nil {
+		t.Fatalf("failed to terminated the process: %s", err)
+	}
+	if IsProcessAlive(pid) {
+		t.Fatal("should've been killed")
+	}
+}
+
 func TestIsPortOpen(t *testing.T) {
-	s := http.Server{Addr: ":44534"}
+	port := common.MustGetFreePort()
+	s := http.Server{Addr: ":" + strconv.Itoa(port)}
 	go s.ListenAndServe()
 	defer s.Shutdown(context.Background())
 	time.Sleep(time.Millisecond)
-	if !common.IsPortOpen(44534) {
-		t.Errorf("port shouldn't be closed")
+	if !common.IsPortOpen(port) {
+		t.Errorf("port should be open")
 	}
 
-	if common.IsPortOpen(34567) {
+	if common.IsPortOpen(34567) { // some random port, there is a possibility it's open
 		t.Errorf("port shouldn't be open")
 	}
 }
 
 func TestGetPidByPort(t *testing.T) {
-	s := http.Server{Addr: ":44534"}
+	port := common.MustGetFreePort()
+	s := http.Server{Addr: ":" + strconv.Itoa(port)}
 	go s.ListenAndServe()
 	defer s.Shutdown(context.Background())
 	time.Sleep(10 * time.Millisecond)
 
-	pid, err := GetPidByPort(44534)
+	pid, err := GetPidByPort(port)
 	if err != nil {
 		t.Errorf("port is closed: %s", err)
 	}

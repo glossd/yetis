@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
@@ -54,7 +53,7 @@ func Info() {
 	if err != nil {
 		fmt.Println("Server hasn't responded", err)
 	}
-	fmt.Printf("Server: version=%s, deployments=%d, services=%d\n", get.Version, get.NumberOfDeployments, get.NumberOfServices)
+	fmt.Printf("Server: version=%s, deployments=%d\n", get.Version, get.NumberOfDeployments)
 }
 
 func GetDeployments() {
@@ -62,17 +61,8 @@ func GetDeployments() {
 	printDeploymentTable()
 }
 
-func GetServices() {
-	versionsWarning()
-	printServiceTable()
-}
-
 func WatchGetDeployments() {
 	watch(printDeploymentTable)
-}
-
-func WatchGetServices() {
-	watch(printServiceTable)
 }
 
 func printDeploymentTable() (int, bool) {
@@ -85,22 +75,6 @@ func printDeploymentTable() (int, bool) {
 		fmt.Fprintln(tw, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND\tPORT")
 		for _, d := range views {
 			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s\t%d", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command, d.LivenessPort))
-		}
-		tw.Flush()
-		return len(views), true
-	}
-}
-
-func printServiceTable() (int, bool) {
-	views, err := fetch.Get[[]server.ServiceView]("/services")
-	if err != nil {
-		fmt.Println(err)
-		return 0, false
-	} else {
-		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "SELECTORNAME\tPORT\tSTATUS\tDEPLOYMENTPORT\tPID")
-		for _, s := range views {
-			fmt.Fprintln(tw, fmt.Sprintf("%s\t%d\t%s\t%d\t%d", s.SelectorName, s.Port, s.Status, s.DeploymentPort, s.Pid))
 		}
 		tw.Flush()
 		return len(views), true
@@ -138,7 +112,7 @@ func preventSignalInterrupt() {
 	}()
 }
 
-func DescribeDeployment(name string) (server.GetResponse, error) {
+func DescribeDeployment(name string) {
 	versionsWarning()
 	r, err := GetDeployment(name)
 	if err != nil {
@@ -157,28 +131,10 @@ func DescribeDeployment(name string) (server.GetResponse, error) {
 		buf.Write(c)
 		fmt.Println(buf.String())
 	}
-	return r, nil
 }
 
 func GetDeployment(name string) (server.GetResponse, error) {
 	return fetch.Get[server.GetResponse]("/deployments/" + name)
-}
-
-func DescribeService(selectorName string) {
-	versionsWarning()
-	r, err := fetch.Get[server.GetServiceResponse]("/services/" + selectorName)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		buf := bytes.Buffer{}
-		buf.WriteString(fmt.Sprintf("PID: %d\n", r.Pid))
-		buf.WriteString(fmt.Sprintf("Port: %d\n", r.Port))
-		buf.WriteString(fmt.Sprintf("SelectorName: %s\n", r.SelectorName))
-		buf.WriteString(fmt.Sprintf("Status: %s\n", r.Status))
-		buf.WriteString(fmt.Sprintf("DeploymentPort: %d\n", r.DeploymentPort))
-		buf.WriteString(fmt.Sprintf("UpdatePort: %d\n", r.UpdatePort))
-		fmt.Println(buf.String())
-	}
 }
 
 func DeleteDeployment(name string) {
@@ -188,16 +144,6 @@ func DeleteDeployment(name string) {
 		fmt.Println(err)
 	} else {
 		fmt.Printf("Successfully deleted '%s' deployment\n", name)
-	}
-}
-
-func DeleteService(selectorName string) {
-	versionsWarning()
-	_, err := fetch.Delete[fetch.Empty]("/services/" + selectorName)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Printf("Successfully deleted service for '%s'\n", selectorName)
 	}
 }
 
@@ -219,15 +165,6 @@ func Apply(path string) []error {
 				fmt.Printf("Failure applying %s deployment: %s\n", spec.Name, err)
 			} else {
 				fmt.Printf("Successfully applied %s deployment\n", spec.Name)
-			}
-		case common.Service:
-			spec := config.Spec.(common.ServiceSpec)
-			_, err := fetch.Post[fetch.Empty]("/services", spec)
-			if err != nil {
-				errs = append(errs, err)
-				fmt.Printf("Failure applying service for %s deployment: %s\n", spec.Selector.Name, err)
-			} else {
-				fmt.Printf("Successfully applied service for %s deployment\n", spec.Selector.Name)
 			}
 		}
 	}
@@ -270,14 +207,47 @@ func ShutdownServer(timeout time.Duration) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	err = unix.TerminateProcess(ctx, pid)
+	process, err := os.FindProcess(pid)
 	if err != nil {
-		fmt.Println("Failed to stop Yetis server", err)
-	} else {
-		fmt.Println("Yetis server stopped.")
+		fmt.Printf("Couldn't find Yetis process %d: %s\n", pid, err)
 	}
+
+	err = process.Signal(syscall.SIGTERM)
+	if err != nil {
+		fmt.Printf("Failed to terminate %d server: %s\n", pid, err)
+	}
+	after := time.After(timeout)
+loop:
+	for {
+		select {
+		case <-after:
+			if !IsServerRunning() {
+				break loop
+			}
+			err := process.Signal(syscall.SIGINT)
+			if err != nil {
+				fmt.Printf("Failed to terminate %d server rapidly: %s\n", pid, err)
+			}
+			time.Sleep(50 * time.Millisecond) // let server kill all deployments
+			err = process.Kill()
+			if err != nil {
+				fmt.Printf("Failed to kill %d server rapidly: %s\n", pid, err)
+			}
+			if common.IsPortOpenRetry(server.YetisServerPort, 30*time.Millisecond, 20) {
+				fmt.Println("Failed to kill Yetis server")
+			} else {
+				fmt.Println("Yetis server killed.")
+			}
+			return
+		default:
+			if IsServerRunning() {
+				continue loop
+			} else {
+				break loop
+			}
+		}
+	}
+	fmt.Println("Yetis server stopped.")
 }
 
 func versionsWarning() {

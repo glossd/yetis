@@ -19,7 +19,6 @@ type Kind string
 
 const (
 	Deployment Kind = "Deployment"
-	Service    Kind = "Service"
 )
 
 type StrategyType string
@@ -35,35 +34,6 @@ type Spec interface {
 	WithDefaults() Spec
 }
 
-type ServiceSpec struct {
-	Port          int
-	Logdir        string
-	LivenessProbe Probe
-	Selector      Selector
-}
-
-func (ss ServiceSpec) Validate() error {
-	if ss.Port == 0 {
-		return fmt.Errorf("service port must be a specific number")
-	}
-	if ss.Selector.Name == "" {
-		return fmt.Errorf("service selector.name can't be empty")
-	}
-	return nil
-}
-
-func (ss ServiceSpec) Kind() Kind {
-	return Service
-}
-
-func (ss ServiceSpec) WithDefaults() Spec {
-	return ss
-}
-
-type Selector struct {
-	Name string
-}
-
 type DeploymentSpec struct {
 	Name          string
 	Cmd           string
@@ -73,6 +43,7 @@ type DeploymentSpec struct {
 	Strategy      DeploymentStrategy
 	LivenessProbe Probe `yaml:"livenessProbe"`
 	Env           []EnvVar
+	Proxy         Proxy
 }
 
 func (ds DeploymentSpec) Validate() error {
@@ -141,6 +112,10 @@ type TcpSocket struct {
 	Port int
 }
 
+func (p Probe) Port() int {
+	return p.TcpSocket.Port
+}
+
 func (p Probe) InitialDelayDuration() time.Duration {
 	return time.Millisecond * time.Duration(p.InitialDelaySeconds*1000)
 }
@@ -155,6 +130,10 @@ type EnvVar struct {
 }
 type DeploymentStrategy struct {
 	Type StrategyType
+}
+
+type Proxy struct {
+	Port int
 }
 
 func ReadConfigs(path string) ([]Config, error) {
@@ -259,12 +238,6 @@ func unmarshal(input io.Reader) ([]Config, error) {
 			return nil, err
 		}
 		switch c.Kind {
-		case Service:
-			spec, err := unmarshalSpec[ServiceSpec](c.Spec)
-			if err != nil {
-				return nil, fmt.Errorf("invalid service spec: %s", err)
-			}
-			configs = append(configs, Config{Spec: spec})
 		case "":
 			fallthrough // backward compatibility
 		case Deployment:

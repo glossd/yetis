@@ -13,7 +13,11 @@ import (
 	"time"
 )
 
-const YetisServerPort = 54129
+// ports from 0-1023 are system or well-known ports.
+// ports from 1024-49151 are user or registered.
+// ports from 49152-65535 are called dynamic.
+
+const YetisServerPort = 34711
 
 func Run() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds) // adds time to the log
@@ -32,12 +36,6 @@ func Run() {
 	mux.HandleFunc("POST /deployments", fetch.ToHandlerFuncEmptyOut(PostDeployment))
 	mux.HandleFunc("DELETE /deployments/{name}", fetch.ToHandlerFuncEmptyOut(DeleteDeployment))
 	mux.HandleFunc("PUT /deployments/{name}/restart", fetch.ToHandlerFuncEmptyOut(RestartDeployment))
-
-	mux.HandleFunc("GET /services", fetch.ToHandlerFunc(ListService))
-	mux.HandleFunc("GET /services/{name}", fetch.ToHandlerFunc(GetService))
-	mux.HandleFunc("POST /services", fetch.ToHandlerFunc(PostService))
-	mux.HandleFunc("DELETE /services/{name}", fetch.ToHandlerFunc(DeleteService))
-	mux.HandleFunc("PUT /services/{name}/port", fetch.ToHandlerFuncEmptyOut(UpdateServiceTargetPort))
 
 	runWithGracefulShutDown(mux)
 }
@@ -67,7 +65,6 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 	log.Printf("Shutting down Yetis server %s...\n", common.YetisVersion)
 
 	deleteDeploymentsGracefully()
-	deleteServicesGracefully()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -100,33 +97,14 @@ func deleteDeploymentsGracefully() {
 	})
 }
 
-func deleteServicesGracefully() {
-	serviceStore.Range(func(name string, value service) bool {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_, err := DeleteService(fetch.Request[fetch.Empty]{
-			Context:    ctx,
-			PathValues: map[string]string{"name": name},
-		})
-		if err == nil {
-			log.Println("Deleted service for", name)
-		} else {
-			log.Printf("Failed to delete service for %s: %s\n", name, err)
-		}
-		return true
-	})
-}
-
 type InfoResponse struct {
 	Version             string
 	NumberOfDeployments int
-	NumberOfServices    int
 }
 
 func Info(_ fetch.Empty) (*InfoResponse, error) {
 	return &InfoResponse{
 		Version:             common.YetisVersion,
 		NumberOfDeployments: deploymentsNum(),
-		NumberOfServices:    servicesNum(),
 	}, nil
 }

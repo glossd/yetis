@@ -40,6 +40,20 @@ func IsPortOpenRetry(port int, period time.Duration, maxRestarts int) bool {
 	return IsPortOpenRetry(port, period, maxRestarts-1)
 }
 
+func IsPortCloseRetry(port int, period time.Duration, maxRestarts int) bool {
+	if maxRestarts == 0 {
+		return false
+	}
+	err := DialPort(port, period)
+	if err != nil {
+		return true
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		time.Sleep(period)
+	}
+	return IsPortCloseRetry(port, period, maxRestarts-1)
+}
+
 // GetFreePort asks the kernel for a free open port that is ready to use.
 // https://gist.github.com/sevkin/96bdae9274465b2d09191384f86ef39d
 func GetFreePort() (port int, err error) {
@@ -52,4 +66,19 @@ func GetFreePort() (port int, err error) {
 		}
 	}
 	return
+}
+
+func MustGetFreePort() int {
+	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		panic("ResolveTCPAddr: " + err.Error())
+	}
+	var l *net.TCPListener
+	l, err = net.ListenTCP("tcp", a)
+	if err != nil {
+		panic("ListenTCP: " + err.Error())
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	return port
 }

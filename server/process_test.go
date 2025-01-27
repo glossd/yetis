@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 )
 
 var sleepConfig = common.DeploymentSpec{
@@ -85,6 +84,14 @@ func TestGetLogCounter(t *testing.T) {
 }
 
 func TestLogRotation(t *testing.T) {
+	rm := func() {
+		out, err := exec.Command("rm", "-rf", "./logrotation").Output()
+		if err != nil {
+			t.Fatal("failed to clean dir", string(out), err)
+		}
+	}
+	rm()
+	t.Cleanup(rm)
 	err := exec.Command("mkdir", "logrotation").Run()
 	if err != nil {
 		t.Fatal("failed to create dir", err)
@@ -95,30 +102,26 @@ func TestLogRotation(t *testing.T) {
 		LivenessProbe: common.Probe{TcpSocket: common.TcpSocket{Port: 1234}},
 		Logdir:        "./logrotation",
 	}
-	_, _, err = launchProcess(config)
+	_, _, err = launchProcess(config, true)
 	assert(t, err, nil)
 	counter := getLogCounter("hello", "./logrotation")
 	assert(t, counter, 0)
-	_, _, err = launchProcess(config)
+	_, _, err = launchProcess(config, true)
 	assert(t, err, nil)
 	counter = getLogCounter("hello", "./logrotation")
 	assert(t, counter, 1)
-	_, _, err = launchProcess(config)
+	_, _, err = launchProcess(config, true)
 	assert(t, err, nil)
 	counter = getLogCounter("hello", "./logrotation")
 	assert(t, counter, 2)
-	time.Sleep(5 * time.Millisecond)
 	file, err := os.ReadFile("./logrotation/hello-0.log")
 	assert(t, err, nil)
 	assert(t, strings.TrimSpace(string(file)), "Hello World!")
-	out, err := exec.Command("rm", "-rf", "./logrotation").Output()
-	if err != nil {
-		t.Fatal("failed to clean dir", string(out), err)
-	}
+
 }
 
 func TestLaunchNonExistingExecutable(t *testing.T) {
-	_, _, err := launchProcess(common.DeploymentSpec{Name: "hello", Cmd: "bogus 4000", Logdir: "stdout"})
+	_, _, err := launchProcess(common.DeploymentSpec{Name: "hello", Cmd: "bogus 4000", Logdir: "stdout"}, false)
 	if err == nil {
 		t.Fatalf("expected error")
 	}

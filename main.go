@@ -5,7 +5,9 @@ import (
 	"github.com/glossd/yetis/client"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/server"
+	"log"
 	"os"
+	"os/user"
 	"strconv"
 	"time"
 )
@@ -37,6 +39,13 @@ func main() {
 		// starts Yetis server in the foreground
 		server.Run()
 	case "start":
+		currentUser, err := user.Current()
+		if err != nil {
+			log.Fatalf("Unable to get current user: %s\n", err)
+		}
+		if currentUser.Username != "root" {
+			log.Println("Warning: not running as root, Yetis won't be to create a proxy")
+		}
 		logdir := "/tmp"
 		if len(args) > 3 {
 			if args[2] == "-d" {
@@ -58,34 +67,17 @@ func main() {
 			fmt.Println("second argument should be the timeout in seconds")
 		}
 		client.ShutdownServer(time.Duration(seconds) * time.Second)
-	case "list": // deprecated.
+	case "get": // deprecated.
 		fallthrough
-	case "get":
+	case "list": // is back in business
 		if len(args) == 2 {
 			client.GetDeployments()
 			return
 		}
-		switch args[2] {
-		case "-w":
-			if len(args) == 3 {
-				client.WatchGetDeployments()
-				return
-			}
-			switch args[3] {
-			case "deployment", "d":
-				client.WatchGetDeployments()
-			case "service", "s":
-				client.WatchGetServices()
-			default:
-				availableKinds()
-			}
-		case "deployment", "d":
-			client.GetDeployments()
-		case "service", "s":
-			client.GetServices()
-		default:
-			printFlags("get [-flags] [kind]", "-w  watches for new updates")
-			return
+		if args[2] == "-w" {
+			client.WatchGetDeployments()
+		} else {
+			printHelp()
 		}
 	case "logs":
 		if len(os.Args) < 3 {
@@ -104,31 +96,17 @@ func main() {
 			client.Logs(os.Args[2], false)
 		}
 	case "describe":
-		if len(os.Args) < 4 {
-			fmt.Println("Invalid command, expected: describe [kind] [name]")
+		if len(os.Args) < 3 {
+			needName()
 			return
 		}
-		switch os.Args[2] {
-		case "service", "s":
-			client.DescribeService(os.Args[3])
-		case "deployment", "d":
-			client.DescribeDeployment(os.Args[3])
-		default:
-			availableKinds()
-		}
+		client.DescribeDeployment(os.Args[2])
 	case "delete":
-		if len(os.Args) < 4 {
-			fmt.Println("Invalid command, expected: delete [kind] [name]")
+		if len(os.Args) < 3 {
+			needName()
 			return
 		}
-		switch os.Args[2] {
-		case "service", "s":
-			client.DeleteService(os.Args[3])
-		case "deployment", "d":
-			client.DeleteDeployment(os.Args[3])
-		default:
-			availableKinds()
-		}
+		client.DeleteDeployment(os.Args[2])
 	case "apply":
 		if len(os.Args) < 4 || os.Args[2] != "-f" {
 			fmt.Println("expected command 'apply -f /path/to/config.yaml'")
@@ -152,10 +130,6 @@ func main() {
 	}
 }
 
-func availableKinds() {
-	fmt.Println("Available kinds: deployment, service")
-}
-
 func printFlags(cmd string, flags ...string) {
 	fmt.Printf("The flags for %s command are:\n", cmd)
 	for _, flag := range flags {
@@ -174,11 +148,11 @@ Server Commands:
 	shutdown                terminate Yetis server
 	info                    print server status
 Resources Commands:
-	apply -f FILENAME       apply a configuration from yaml file.
-	get [-w] KIND           print a list the managed resources.
+	apply -f FILENAME       apply a configuration from yaml file
+	list [-w]               print a list the managed deployment
 	logs [-f] NAME          print the logs of the deployment with NAME
-	describe KIND NAME      print a detailed description of the selected resource
-	delete KIND NAME        delete the resource, terminating its process
+	describe NAME           print a detailed description of the selected deployment
+	delete NAME             delete the deployment, terminating its process
 	restart NAME            restart the deployment according to its strategy type 
 	help                    print the list of the commands
 `)

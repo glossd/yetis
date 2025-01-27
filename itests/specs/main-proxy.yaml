@@ -1,0 +1,13 @@
+kind: Deployment
+spec:
+  name: go
+  preCmd: go build -o main main.go
+  cmd: ./main
+  logdir: stdout
+  livenessProbe:
+    initialDelaySeconds: 1
+    periodSeconds: 0.1
+    failureThreshold: 2
+    successThreshold: 1
+  proxy:
+    port: 27000

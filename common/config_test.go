@@ -10,25 +10,28 @@ func TestConfigUnmarshalSpec(t *testing.T) {
 kind: Deployment
 spec:
   name: hello-world # Must be unique
+  preCmd: javac HelloWorld.java # Command to execute before the starting the process.  
   cmd: java HelloWorld
   workdir: /home/user/myproject # Directory where command is executed. Defaults to the path in 'apply -f'. 
   logdir: /home/user/myproject/logs # Directory where the logs are stored. Defaults to the path in 'apply -f'.
   strategy:
-    type: Recreate # Recreate or RollingUpdate. Defaults to Recreate. RollingUpdate should be specified only with Service 
+    type: Recreate # Recreate or RollingUpdate. Defaults to Recreate.
   livenessProbe: # Checks if the command is alive and if not then restarts it
     tcpSocket:
-      port: 8080 # Should be specified if Service is not configured. Defaults to $YETIS_PORT 
+      port: 8080 # Should be specified if proxy is not configured. Defaults to $YETIS_PORT 
     initialDelaySeconds: 5 # Defaults to 10
     periodSeconds: 5 # Defaults to 10
     failureThreshold: 3 # Defaults to 3
     successThreshold: 1 # Defaults to 1
-  env:
+  env: # YETIS_PORT env var is passed by default. You should use alongside proxy config. 
     - name: SOME_SECRET
       value: "pancakes are cakes made in a pan"
     - name: SOME_PASSWORD
       value: mellon
     - name: MY_PORT
       value: $YETIS_PORT # pass the value of the environment variable to another one.
+  proxy:
+    port: 8080 # Tells linux to forward from the specified port to $YETIS_PORT, allowing zero downtime restarts.
 `
 
 	configs, err := unmarshal(bytes.NewBuffer([]byte(fullConfig)))

@@ -39,9 +39,10 @@ func TerminateProcess(ctx context.Context, pid int) error {
 		case <-ctx.Done():
 			err = process.Signal(syscall.SIGKILL)
 			if err != nil {
-				log.Printf("failed to kill %d process: %s\n", pid, err)
+				log.Printf("context deadline exceeded but failed to kill %d process: %s\n", pid, err)
+				return err
 			}
-			return nil
+			return context.DeadlineExceeded
 		default:
 			if !IsProcessAlive(process.Pid) {
 				return nil
@@ -105,6 +106,9 @@ func KillByPort(port int, wait bool) error {
 	if err != nil {
 		return err
 	}
+	if !wait {
+		return Kill(pid)
+	}
 	proc, err := os.FindProcess(pid)
 	if err != nil {
 		return err
@@ -113,10 +117,13 @@ func KillByPort(port int, wait bool) error {
 	if err != nil {
 		return err
 	}
-	if wait {
-		proc.Wait()
-	}
+	proc.Wait()
+
 	return nil
+}
+
+func Kill(pid int) error {
+	return exec.Command("kill", "-9", strconv.Itoa(pid)).Start()
 }
 
 func Cat(filePath string, stream bool) error {
