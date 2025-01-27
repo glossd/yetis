@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"github.com/glossd/yetis/common"
@@ -65,24 +64,7 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 	}
 	shCmd := append([]string{"sh", "-c", ev.String() + " " + c.Cmd})
 	cmd := exec.Command(shCmd[0], shCmd[1:]...)
-	if w == nil {
-		go func() {
-			fmt.Println("here")
-			// mostly for testing purposes
-			stdout, err := cmd.StdoutPipe()
-			if err != nil {
-				return
-			}
-			buf := bufio.NewReader(stdout)
-			for {
-				line, _, err := buf.ReadLine()
-				if err != nil {
-					return
-				}
-				fmt.Println(string(line))
-			}
-		}()
-	} else {
+	if w != nil {
 		cmd.Stdout = w
 		cmd.Stderr = w
 	}

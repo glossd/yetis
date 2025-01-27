@@ -57,7 +57,7 @@ func TestLivenessRestart(t *testing.T) {
 	}
 
 	checkSR("before first heartbeat", server.Pending, 0)
-	forTimeout(t, 30*time.Second, func() bool {
+	forTimeout(t, 3*time.Second, func() bool {
 		d, err := client.GetDeployment("hello")
 		assert(t, err, nil)
 		if d.Status == server.Running.String() {
