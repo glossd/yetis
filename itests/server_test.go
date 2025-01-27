@@ -26,7 +26,7 @@ func TestLivenessRestart(t *testing.T) {
 	// let the server start
 	time.Sleep(time.Millisecond)
 
-	errs := client.Apply(pwd(t) + "/specs/static.yaml")
+	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}
@@ -93,7 +93,7 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 	if !common.IsPortOpenRetry(server.YetisServerPort, 50*time.Millisecond, 30) {
 		t.Fatal("yetis server hasn't started")
 	}
-	errs := client.Apply(pwd(t) + "/specs/static.yaml")
+	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
 	}

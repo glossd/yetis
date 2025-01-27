@@ -14,9 +14,9 @@ import (
 func TestPortForwarding(t *testing.T) {
 	skipIfNotIptables(t)
 	port := 4567
-	unix.KillByPort(port, true)
-
 	targetPort := 45678
+	unix.KillByPort(port, true)
+	unix.KillByPort(targetPort, true)
 
 	mux := &http.ServeMux{}
 	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +24,7 @@ func TestPortForwarding(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 	go http.ListenAndServe(fmt.Sprintf(":%d", targetPort), mux)
-	if !common.IsPortOpenRetry(targetPort, 50*time.Millisecond, 20) {
+	if !common.IsPortOpenRetry(targetPort, 50*time.Millisecond, 30) {
 		t.Fatal("target port should be open")
 	}
 

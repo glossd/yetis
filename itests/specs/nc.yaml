@@ -1,12 +1,11 @@
 spec:
   name: hello
-  preCmd: go build -o main cmd/static/main.go
-  cmd: ./main
+  cmd: nc -lk 27000
   logdir: stdout
   livenessProbe:
     tcpSocket:
       port: 27000
-    initialDelaySeconds: 1
+    initialDelaySeconds: 0.1
     periodSeconds: 0.1
     failureThreshold: 2
     successThreshold: 1
