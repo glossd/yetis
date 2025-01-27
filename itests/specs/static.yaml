@@ -6,7 +6,7 @@ spec:
   livenessProbe:
     tcpSocket:
       port: 27000
-    initialDelaySeconds: 1
+    initialDelaySeconds: 2
     periodSeconds: 0.5
     failureThreshold: 2
     successThreshold: 1
