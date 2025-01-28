@@ -121,18 +121,24 @@ func isYetisPortUsed(c common.DeploymentSpec) bool {
 }
 
 type DeploymentView struct {
-	Name         string
-	Status       string
-	Pid          int
-	Restarts     int
-	Age          string
-	Command      string
+	Name     string
+	Status   string
+	Pid      int
+	Restarts int
+	Age      string
+	Command  string
+	// Deprecated.
 	LivenessPort int
+	PortInfo     string
 }
 
 func ListDeployment() ([]DeploymentView, error) {
 	var res []DeploymentView
 	rangeDeployments(func(name string, p deployment) {
+		portInfo := strconv.Itoa(p.spec.LivenessProbe.Port())
+		if p.spec.Proxy.Port > 0 {
+			portInfo = strconv.Itoa(p.spec.Proxy.Port) + " to " + strconv.Itoa(p.spec.LivenessProbe.Port())
+		}
 		res = append(res, DeploymentView{
 			Name:         name,
 			Status:       p.status.String(),
@@ -141,6 +147,7 @@ func ListDeployment() ([]DeploymentView, error) {
 			Age:          ageSince(p.createdAt),
 			Command:      p.spec.Cmd,
 			LivenessPort: p.spec.LivenessProbe.Port(),
+			PortInfo:     portInfo,
 		})
 	})
 
