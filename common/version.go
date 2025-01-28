@@ -1,3 +1,3 @@
 package common
 
-const YetisVersion = "v0.3.1"
+const YetisVersion = "v0.3.2"

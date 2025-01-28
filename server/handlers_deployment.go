@@ -45,28 +45,38 @@ func PostDeployment(req fetch.Request[common.DeploymentSpec]) error {
 		return fmt.Errorf("livenessProxy.tcpSocket.port can't be specified with proxy.port")
 	}
 
-	// todo first start its proxy then deployment, then delete proxy if deployment error
-	spec, err := startDeploymentWithEnv(spec, false)
+	spec, err := setYetisPortEnv(spec.WithDefaults().(common.DeploymentSpec))
 	if err != nil {
+		return err
+	}
+
+	if spec.Proxy.Port > 0 {
+		err := proxy.CreatePortForwarding(spec.Proxy.Port, spec.LivenessProbe.Port())
+		if err != nil {
+			return fmt.Errorf("failed to create proxy: %s", err)
+		}
+	}
+
+	spec, err = startDeploymentWithEnv(spec, false, false)
+	if err != nil {
+		if spec.Proxy.Port > 0 {
+			_ = proxy.DeletePortForwarding(spec.Proxy.Port, spec.LivenessProbe.Port())
+		}
 		return err
 	}
 
 	startLivenessCheck(spec)
 
-	if spec.Proxy.Port > 0 {
-		err := proxy.CreatePortForwarding(spec.Proxy.Port, spec.LivenessProbe.Port())
-		if err != nil {
-			return fmt.Errorf("started deployment but failed to create proxy: %s", err)
-		}
-	}
-
 	return nil
 }
 
-func startDeploymentWithEnv(spec common.DeploymentSpec, upsert bool) (common.DeploymentSpec, error) {
-	spec, err := setYetisPortEnv(spec.WithDefaults().(common.DeploymentSpec))
-	if err != nil {
-		return spec, err
+func startDeploymentWithEnv(spec common.DeploymentSpec, upsert, setYetisPort bool) (common.DeploymentSpec, error) {
+	var err error
+	if setYetisPort {
+		spec, err = setYetisPortEnv(spec.WithDefaults().(common.DeploymentSpec))
+		if err != nil {
+			return spec, err
+		}
 	}
 	err = spec.Validate()
 	if err != nil {
@@ -252,7 +262,7 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 	if oldDeployment.spec.Strategy.Type == common.RollingUpdate {
 		newSpec = oldDeployment.spec
 		newSpec.Name = upgradeNameForRollingUpdate(newSpec.Name)
-		newSpec, err = startDeploymentWithEnv(newSpec, false)
+		newSpec, err = startDeploymentWithEnv(newSpec, false, true)
 		if err != nil {
 			return fmt.Errorf("rastart failed: the new rolling deployment of '%s' failed to start: %s", oldDeployment.spec.Name, err)
 		}
@@ -299,7 +309,7 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 		if err != nil {
 			return fmt.Errorf("failed to terminate deployment's process: %s", err)
 		}
-		newSpec, err = startDeploymentWithEnv(oldDeployment.spec, true)
+		newSpec, err = startDeploymentWithEnv(oldDeployment.spec, true, true)
 		if err != nil {
 			return fmt.Errorf("faield to start deployment: %s", err)
 		}

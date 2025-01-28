@@ -10,7 +10,16 @@ import (
 var ErrRuleNotFound = fmt.Errorf("iptables rule not found")
 
 func CreatePortForwarding(fromPort, toPort int) error {
-	// todo  return the line number?
+	rules, err := listRules()
+	if err != nil {
+		return err
+	}
+	for _, rule := range strings.Split(rules, "\n") {
+		if strings.Contains(rule, strconv.Itoa(fromPort)) {
+			return fmt.Errorf("iptables already have port forwarding rule for %d port", fromPort)
+		}
+	}
+
 	// https://askubuntu.com/a/579540/915003
 	argStr := "-t nat -A OUTPUT " + portForwardRule(fromPort, toPort)
 	cmd := exec.Command("iptables", strings.Split(argStr, " ")...)
@@ -50,11 +59,19 @@ func UpdatePortForwarding(fromPort, oldToPort, newToPort int) error {
 }
 
 func getLine(fromPort, toPort int) (int, error) {
+	output, err := listRules()
+	if err != nil {
+		return 0, err
+	}
+	return extractLine(output, fromPort, toPort)
+}
+
+func listRules() (string, error) {
 	output, err := exec.Command("iptables", strings.Split("-t nat -L OUTPUT --line-numbers -n", " ")...).Output()
 	if err != nil {
-		return 0, fmt.Errorf("failed to list iptables rules: %s", err)
+		return "", fmt.Errorf("failed to list iptables rules: %s", err)
 	}
-	return extractLine(string(output), fromPort, toPort)
+	return string(output), nil
 }
 
 func extractLine(output string, fromPort, toPort int) (int, error) {
