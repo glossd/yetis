@@ -19,7 +19,7 @@ func TestLivenessFailed(t *testing.T) {
 		},
 	}
 
-	_, err := startDeploymentWithEnv(config, false)
+	_, err := startDeploymentWithEnv(config, false, true)
 	assert(t, err, nil)
 	defer deleteDeployment(config.Name)
 	isPortOpenMock = BoolPtr(true)
@@ -57,7 +57,7 @@ func TestLivenessResurrection(t *testing.T) {
 			SuccessThreshold:    1,
 		},
 	}
-	_, err := startDeploymentWithEnv(config, false)
+	_, err := startDeploymentWithEnv(config, false, true)
 	assert(t, err, nil)
 	defer deleteDeployment(config.Name)
 	isPortOpenMock = BoolPtr(true)

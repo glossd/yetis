@@ -187,6 +187,8 @@ func Logs(name string, stream bool) {
 }
 
 func Restart(name string) error {
+	// todo it might take a while, need to have a status
+	fmt.Println("Restarting deployment...")
 	_, err := fetch.Put[fetch.Empty]("/deployments/"+name+"/restart", nil)
 	if err != nil {
 		fmt.Println(err)
