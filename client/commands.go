@@ -74,7 +74,7 @@ func printDeploymentTable() (int, bool) {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(tw, "NAME\tSTATUS\tPID\tRESTARTS\tAGE\tCOMMAND\tPORT")
 		for _, d := range views {
-			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s\t%d", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command, d.LivenessPort))
+			fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t%d\t%d\t%s\t%s\t%s", d.Name, d.Status, d.Pid, d.Restarts, d.Age, d.Command, d.PortInfo))
 		}
 		tw.Flush()
 		return len(views), true

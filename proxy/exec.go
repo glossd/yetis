@@ -50,7 +50,7 @@ func UpdatePortForwarding(fromPort, oldToPort, newToPort int) error {
 }
 
 func getLine(fromPort, toPort int) (int, error) {
-	output, err := exec.Command("iptables", strings.Split("-t nat -L OUTPUT --line-numbers", " ")...).Output()
+	output, err := exec.Command("iptables", strings.Split("-t nat -L OUTPUT --line-numbers -n", " ")...).Output()
 	if err != nil {
 		return 0, fmt.Errorf("failed to list iptables rules: %s", err)
 	}
@@ -59,17 +59,11 @@ func getLine(fromPort, toPort int) (int, error) {
 
 func extractLine(output string, fromPort, toPort int) (int, error) {
 	lines := strings.Split(output, "\n")
-	fromPortStr := strconv.Itoa(fromPort)
-	// for some reason iptables list replaces the well-known ports with their names.
-	switch fromPort {
-	case 80:
-		fromPortStr = "http"
-	case 443:
-		fromPortStr = "https"
-	}
 
+	fromPortStr := strconv.Itoa(fromPort)
+	toPortStr := strconv.Itoa(toPort)
 	for _, line := range lines {
-		if strings.Contains(line, fromPortStr) && strings.Contains(line, strconv.Itoa(toPort)) {
+		if strings.Contains(line, fromPortStr) && strings.Contains(line, toPortStr) {
 			lexes := strings.Split(line, " ")
 			num, err := strconv.Atoi(lexes[0])
 			if err != nil {
