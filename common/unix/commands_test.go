@@ -13,7 +13,7 @@ import (
 )
 
 func TestIsProcessAlive(t *testing.T) {
-	cmd := exec.Command("sleep", "0.03")
+	cmd := exec.Command("sleep", "0.05")
 	err := cmd.Start()
 	if err != nil {
 		t.Fatalf("error launching process: %s", err)
@@ -26,7 +26,7 @@ func TestIsProcessAlive(t *testing.T) {
 		t.Fatal("pid shouldn't exist") // probs:)
 	}
 
-	time.Sleep(35 * time.Millisecond)
+	time.Sleep(55 * time.Millisecond)
 	if IsProcessAlive(pid) {
 		t.Fatal("sleep should have terminated")
 	}
