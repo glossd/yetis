@@ -25,3 +25,12 @@ alerting:
 	}
 	assert(t, res.Alerting.Mail.Validate(), nil)
 }
+
+func TestSendEmail(t *testing.T) {
+	t.SkipNow()
+
+	c := ReadServerConfig("../tmp/yetis.yml")
+	assert(t, c.Alerting.Mail.Validate(), nil)
+	err := c.Alerting.Mail.Send("Hello Test", "This came from TestSendEmail")
+	assert(t, err, nil)
+}

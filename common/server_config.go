@@ -7,12 +7,12 @@ import (
 	"net/smtp"
 	"os"
 	"reflect"
-	yaml "sigs.k8s.io/yaml/goyaml.v3"
+	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
 type YetisConfig struct {
-	Logdir string
-	Alerting
+	Logdir   string
+	Alerting Alerting
 }
 
 type Alerting struct {
@@ -58,7 +58,7 @@ func (m Mail) Validate() error {
 func (m Mail) Send(title, description string) error {
 	smtpAuth := smtp.PlainAuth("", m.Username, m.Password, m.Host)
 	address := fmt.Sprintf("%s:%d", m.Host, m.Port)
-	msg := fmt.Sprintf("Subject: %s\n\n%s", title, description)
+	msg := fmt.Sprintf("From: %s\nSubject: %s\n\n%s", m.From, title, description)
 	return smtp.SendMail(address, smtpAuth, m.From, m.To, []byte(msg))
 }
 
