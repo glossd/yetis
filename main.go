@@ -37,7 +37,17 @@ func main() {
 		fmt.Printf("Client: version=%s\n", common.YetisVersion)
 	case "run":
 		// starts Yetis server in the foreground
-		server.Run()
+		if len(args) == 2 {
+			server.Run("")
+			return
+		}
+
+		if len(args) != 4 || args[2] != "-f" {
+			printFlags("run", Flag{Def: "-f FILENAME", Des: "path to the yetis config"})
+			return
+		}
+
+		server.Run(args[3])
 	case "start":
 		currentUser, err := user.Current()
 		if err != nil {
@@ -46,16 +56,16 @@ func main() {
 		if currentUser.Username != "root" {
 			log.Println("Warning: not running as root, Yetis won't be to create a proxy")
 		}
-		logdir := "/tmp"
-		if len(args) > 3 {
-			if args[2] == "-d" {
-				logdir = args[3]
-			} else {
-				printFlags("start", "-d  directory for the server log")
-				return
-			}
+		if len(args) == 2 {
+			client.StartBackground("")
+			return
 		}
-		client.StartBackground(logdir)
+		if len(args) != 4 || args[2] != "-f" {
+			printFlags("start", Flag{Def: "-f FILENAME", Des: "path to the yetis config"})
+			return
+		}
+
+		client.StartBackground(args[3])
 	case "shutdown":
 		if len(args) == 2 {
 			client.ShutdownServer(5 * time.Minute)
@@ -130,10 +140,17 @@ func main() {
 	}
 }
 
-func printFlags(cmd string, flags ...string) {
+type Flag struct {
+	// Definition e.g. -f FILENAME
+	Def string
+	// Description e.g. path to the config
+	Des string
+}
+
+func printFlags(cmd string, flags ...Flag) {
 	fmt.Printf("The flags for %s command are:\n", cmd)
-	for _, flag := range flags {
-		fmt.Println("	" + flag)
+	for _, f := range flags {
+		fmt.Println("	" + f.Def + "    " + f.Des)
 	}
 }
 
@@ -144,7 +161,7 @@ func needName() {
 func printHelp() {
 	fmt.Printf(`The commands are:
 Server Commands:
-	start [-d]              start Yetis server
+	start [-f FILENAME]     start Yetis server
 	shutdown                terminate Yetis server
 	info                    print server status
 Resources Commands:

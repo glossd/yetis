@@ -24,17 +24,36 @@ func init() {
 	fetch.SetBaseURL(baseURL)
 }
 
-func StartBackground(logdir string) {
+type Settings struct {
+	Alerting
+}
+
+type Alerting interface {
+}
+
+type MailAlerting struct {
+	Host     string
+	From     string
+	Username string
+	Password string
+}
+
+func StartBackground(pathToConfig string) {
 	if !unix.ExecutableExists("yetis") {
 		fmt.Println("yetis is not installed")
 	}
 
-	logFilePath := filepath.Join(logdir, "yetis.log")
+	c := common.YetisConfig{}.WithDefaults()
+	if pathToConfig != "" {
+		c = common.ReadServerConfig(pathToConfig)
+	}
+
+	logFilePath := filepath.Join(c.Logdir, "yetis.log")
 	file, err := os.OpenFile(logFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0750)
 	if err != nil {
 		fmt.Println("Failed to open log file at", logFilePath, err)
 	}
-	cmd := exec.Command("nohup", "yetis", "run")
+	cmd := exec.Command("nohup", "yetis", "run", "-f", pathToConfig)
 	cmd.Stdout = file
 	cmd.Stderr = file
 	err = cmd.Start()
@@ -66,7 +85,7 @@ func WatchGetDeployments() {
 }
 
 func printDeploymentTable() (int, bool) {
-	views, err := fetch.Get[[]server.DeploymentView]("/deployments")
+	views, err := fetch.Get[[]server.DeploymentInfo]("/deployments")
 	if err != nil {
 		fmt.Println(err)
 		return 0, false
@@ -133,8 +152,8 @@ func DescribeDeployment(name string) {
 	}
 }
 
-func GetDeployment(name string) (server.GetResponse, error) {
-	return fetch.Get[server.GetResponse]("/deployments/" + name)
+func GetDeployment(name string) (server.DeploymentFullInfo, error) {
+	return fetch.Get[server.DeploymentFullInfo]("/deployments/" + name)
 }
 
 func DeleteDeployment(name string) {
@@ -172,7 +191,7 @@ func Apply(path string) []error {
 }
 
 func Logs(name string, stream bool) {
-	r, err := fetch.Get[server.GetResponse]("/deployments/" + name)
+	r, err := fetch.Get[server.DeploymentFullInfo]("/deployments/" + name)
 	if err != nil {
 		fmt.Println(err)
 	} else {

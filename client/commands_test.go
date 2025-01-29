@@ -8,7 +8,7 @@ import (
 )
 
 func TestInfo(t *testing.T) {
-	go server.Run()
+	go server.Run("")
 	t.Cleanup(server.Stop)
 	time.Sleep(5 * time.Millisecond)
 	res, err := fetch.Get[server.InfoResponse](baseHost + "/info")

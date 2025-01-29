@@ -134,6 +134,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		if p.restarts >= restartsLimit {
 			updateDeploymentStatus(oldSpec.Name, Failed)
 			thresholdMap.Delete(oldSpec.Name)
+			AlertFail(oldSpec.Name)
 			return tryAgain
 		}
 		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", oldSpec.Name)
@@ -177,6 +178,12 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 	}
 	if tsh.SuccessCount >= dep.spec.LivenessProbe.SuccessThreshold {
 		updateDeploymentStatus(dep.spec.Name, Running)
+		if dep.status != Running { // if it wasn't already running
+			// Status could be Pending after Failed. Threshold could be cleaned after Failed.
+			// It will be triggered at the start of the process for example, but AlertRecovery checks if the process failed before.
+			// not specifying the right condition will spam logs with "alert was not triggered"
+			AlertRecovery(dep.spec.Name)
+		}
 	}
 	return alive
 }

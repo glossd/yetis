@@ -130,7 +130,7 @@ func isYetisPortUsed(c common.DeploymentSpec) bool {
 	return c.YetisPort() == c.LivenessProbe.TcpSocket.Port
 }
 
-type DeploymentView struct {
+type DeploymentInfo struct {
 	Name     string
 	Status   string
 	Pid      int
@@ -142,14 +142,14 @@ type DeploymentView struct {
 	PortInfo     string
 }
 
-func ListDeployment() ([]DeploymentView, error) {
-	var res []DeploymentView
+func ListDeployment() ([]DeploymentInfo, error) {
+	var res []DeploymentInfo
 	rangeDeployments(func(name string, p deployment) {
 		portInfo := strconv.Itoa(p.spec.LivenessProbe.Port())
 		if p.spec.Proxy.Port > 0 {
 			portInfo = strconv.Itoa(p.spec.Proxy.Port) + " to " + strconv.Itoa(p.spec.LivenessProbe.Port())
 		}
-		res = append(res, DeploymentView{
+		res = append(res, DeploymentInfo{
 			Name:         name,
 			Status:       p.status.String(),
 			Pid:          p.pid,
@@ -165,8 +165,8 @@ func ListDeployment() ([]DeploymentView, error) {
 	return res, nil
 }
 
-func sortDeployments(res []DeploymentView) {
-	slices.SortFunc(res, func(a, b DeploymentView) int {
+func sortDeployments(res []DeploymentInfo) {
+	slices.SortFunc(res, func(a, b DeploymentInfo) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
 }
@@ -186,7 +186,7 @@ func ageSince(t time.Time) string {
 	return fmt.Sprintf("%ds", int(age.Seconds()))
 }
 
-type GetResponse struct {
+type DeploymentFullInfo struct {
 	Pid      int
 	Restarts int
 	Status   string
@@ -195,7 +195,7 @@ type GetResponse struct {
 	Spec     common.DeploymentSpec
 }
 
-func GetDeployment(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
+func GetDeployment(r fetch.Request[fetch.Empty]) (*DeploymentFullInfo, error) {
 	name := r.PathValues["name"]
 	if name == "" {
 		return nil, fmt.Errorf("name can't be empty")
@@ -205,14 +205,18 @@ func GetDeployment(r fetch.Request[fetch.Empty]) (*GetResponse, error) {
 		return nil, fmt.Errorf("name '%s' doesn't exist", name)
 	}
 
-	return &GetResponse{
+	return deploymentToInfo(p), nil
+}
+
+func deploymentToInfo(p deployment) *DeploymentFullInfo {
+	return &DeploymentFullInfo{
 		Pid:      p.pid,
 		Restarts: p.restarts,
 		Status:   p.status.String(),
 		Age:      ageSince(p.createdAt),
 		LogPath:  p.logPath,
 		Spec:     p.spec,
-	}, nil
+	}
 }
 
 func DeleteDeployment(r fetch.Request[fetch.Empty]) error {
