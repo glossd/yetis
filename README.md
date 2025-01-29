@@ -116,7 +116,11 @@ If deployment has `Recreate` strategy, Yetis will wait for the termination of th
 It's the same as in [Kubernetes](https://medium.com/@muppedaanvesh/rolling-update-recreate-deployment-strategies-in-kubernetes-️-327b59f27202)
 
 ### Yetis Server Configuration
-Configure Yetis server when starting it: `yetis start -f /path/to/config.yml`
+Provide configuration when starting Yetis: `yetis start -f /path/to/config.yml`
+#### Alerting
+You can configure server to send you alerts of your deployment's failure or recovery from failure.
+For now, yetis only supports mail alerting through SMTP.
+#### Full Yetis Configuration 
 ```yaml
 logdir: /tmp # yetis.log will be stored in there. Defaults to /tmp
 alerting: # Alerts when a managed process fails or recovers.
