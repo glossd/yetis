@@ -134,6 +134,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		if p.restarts >= restartsLimit {
 			updateDeploymentStatus(oldSpec.Name, Failed)
 			thresholdMap.Delete(oldSpec.Name)
+			AlertFail(oldSpec.Name)
 			return tryAgain
 		}
 		log.Printf("Restarting '%s' deployment, failureThreshold was reached\n", oldSpec.Name)
@@ -177,6 +178,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 	}
 	if tsh.SuccessCount >= dep.spec.LivenessProbe.SuccessThreshold {
 		updateDeploymentStatus(dep.spec.Name, Running)
+		AlertRecovery(dep.spec.Name)
 	}
 	return alive
 }

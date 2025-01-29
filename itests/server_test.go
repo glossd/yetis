@@ -21,7 +21,7 @@ import (
 //	server_test.go:42: before first healthcheck: expected Pending status, got Running, restarts 0
 func TestLivenessRestart(t *testing.T) {
 	unix.KillByPort(server.YetisServerPort, true)
-	go server.Run()
+	go server.Run("")
 	t.Cleanup(server.Stop)
 	// let the server start
 	time.Sleep(time.Millisecond)
@@ -31,7 +31,7 @@ func TestLivenessRestart(t *testing.T) {
 		t.Fatalf("apply errors: %v", errs)
 	}
 
-	check := func(f func(server.GetResponse)) {
+	check := func(f func(server.DeploymentFullInfo)) {
 		dr, err := client.GetDeployment("hello")
 		if err != nil {
 			t.Fatal(err)
@@ -40,7 +40,7 @@ func TestLivenessRestart(t *testing.T) {
 	}
 
 	checkSR := func(description string, s server.ProcessStatus, restarts int) {
-		check(func(r server.GetResponse) {
+		check(func(r server.DeploymentFullInfo) {
 			if r.Status != s.String() {
 				t.Fatalf("%s: expected %s status, got %s, restarts %d", description, s.String(), r.Status, r.Restarts)
 			}

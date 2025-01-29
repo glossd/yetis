@@ -19,8 +19,14 @@ import (
 
 const YetisServerPort = 34711
 
-func Run() {
+var serverConfig = common.DefaultYetisConfig()
+
+func Run(configPath string) {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds) // adds time to the log
+
+	if configPath != "" {
+		serverConfig = common.ReadServerConfig(configPath)
+	}
 
 	mux := http.NewServeMux()
 

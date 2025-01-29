@@ -17,7 +17,7 @@ import (
 
 func TestProxyUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 	skipIfNotIptables(t)
-	go server.Run()
+	go server.Run("")
 	t.Cleanup(server.Stop)
 	// let the server start
 	time.Sleep(5 * time.Millisecond)
@@ -89,7 +89,7 @@ func TestProxyUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 
 func TestRestart_RollingUpdate_ZeroDowntime(t *testing.T) {
 	skipIfNotIptables(t)
-	go server.Run()
+	go server.Run("")
 	t.Cleanup(server.Stop)
 	// let the server start
 	time.Sleep(5 * time.Millisecond)
@@ -148,7 +148,7 @@ func TestRestart_RollingUpdate_ZeroDowntime(t *testing.T) {
 
 func TestDeploymentRestartWithNewYetisPort(t *testing.T) {
 	skipIfNotIptables(t)
-	go server.Run()
+	go server.Run("")
 	t.Cleanup(server.Stop)
 	// let the server start
 	time.Sleep(5 * time.Millisecond)
