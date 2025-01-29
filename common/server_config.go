@@ -15,6 +15,13 @@ type YetisConfig struct {
 	Alerting Alerting
 }
 
+func (yc YetisConfig) WithDefaults() YetisConfig {
+	if yc.Logdir == "" {
+		yc.Logdir = "/tmp"
+	}
+	return yc
+}
+
 type Alerting struct {
 	Mail Mail
 }
@@ -67,7 +74,7 @@ func ReadServerConfig(path string) YetisConfig {
 	if err != nil {
 		log.Fatalf("Couldn't open server config: %s", err)
 	}
-	return readServerConfig(f)
+	return readServerConfig(f).WithDefaults()
 }
 
 func readServerConfig(f io.Reader) YetisConfig {
@@ -87,8 +94,4 @@ func readServerConfig(f io.Reader) YetisConfig {
 		}
 	}
 	return c
-}
-
-func DefaultYetisConfig() YetisConfig {
-	return YetisConfig{Logdir: "/tmp"}
 }

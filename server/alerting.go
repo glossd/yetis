@@ -5,6 +5,7 @@ import (
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
 	"log"
+	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
 var alertStore = common.Map[string, bool]{}
@@ -47,12 +48,12 @@ func AlertRecovery(name string) error {
 		log.Printf("AlertRecovery skipped: %s\n", err)
 		return err
 	}
-	info, err := fetch.Marshal(deploymentToInfo(d))
+	info, err := yaml.Marshal(deploymentToInfo(d))
 	if err != nil {
 		log.Printf("AlertRecovery skipped: marshal: %s\n", err)
 		return err
 	}
-	err = serverConfig.Alerting.Send(fmt.Sprintf("Deployment %s Recovered", d.spec.Name), info)
+	err = serverConfig.Alerting.Send(fmt.Sprintf("Deployment %s Recovered", d.spec.Name), string(info))
 	if err != nil {
 		log.Printf("AlertRecovery skipped: send: %s", err)
 		return err

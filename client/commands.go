@@ -43,7 +43,7 @@ func StartBackground(pathToConfig string) {
 		fmt.Println("yetis is not installed")
 	}
 
-	c := common.DefaultYetisConfig()
+	c := common.YetisConfig{}.WithDefaults()
 	if pathToConfig != "" {
 		c = common.ReadServerConfig(pathToConfig)
 	}

@@ -19,7 +19,7 @@ import (
 
 const YetisServerPort = 34711
 
-var serverConfig = common.DefaultYetisConfig()
+var serverConfig = common.YetisConfig{}.WithDefaults()
 
 func Run(configPath string) {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds) // adds time to the log
