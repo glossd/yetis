@@ -7,7 +7,7 @@ import (
 	"net/smtp"
 	"os"
 	"reflect"
-	"sigs.k8s.io/yaml"
+	yaml "sigs.k8s.io/yaml/goyaml.v3"
 )
 
 type YetisConfig struct {
@@ -67,6 +67,10 @@ func ReadServerConfig(path string) YetisConfig {
 	if err != nil {
 		log.Fatalf("Couldn't open server config: %s", err)
 	}
+	return readServerConfig(f)
+}
+
+func readServerConfig(f io.Reader) YetisConfig {
 	str, err := io.ReadAll(f)
 	if err != nil {
 		log.Fatalf("Couldn't read server config: %s", err)

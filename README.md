@@ -20,7 +20,7 @@ sudo wget -O /usr/local/bin/yetis https://github.com/glossd/yetis/raw/refs/heads
 sudo yetis start
 ```
 *Must be `root` to configure `proxy`  
-Yetis will start in the background. The logs are available at `/tmp/yetis.log`. You can specify your own log directory with `-d` flag.
+Yetis will start in the background. You can pass [yetis configuration](#yetis-server-configuration) with `-f` flag. 
 ### Available commands
 #### Deploy your process:
 ```shell
@@ -114,3 +114,18 @@ Zero downtime is achieved with `RollingUpdate` strategy and `restart` command. Y
 then direct traffic to the new instance, and only then will terminate the old instance. The new deployment will have the name with an index i.e. frontend-1, frontend-2 and so on.
 If deployment has `Recreate` strategy, Yetis will wait for the termination of the old instance before starting a new one with the same name.
 It's the same as in [Kubernetes](https://medium.com/@muppedaanvesh/rolling-update-recreate-deployment-strategies-in-kubernetes-️-327b59f27202)
+
+### Yetis Server Configuration
+Configure Yetis server when starting it: `yetis start -f /path/to/config.yml`
+```yaml
+logdir: /tmp # yetis.log will be stored in there. Defaults to /tmp
+alerting: # Alerts when a managed process fails or recovers.
+  mail: # add SMPT creds of your smpt server for alerting
+    host: smtp.host.com
+    port: 587
+    from: noreply@mail.com
+    to:
+      - yourmail@mail.com
+    username: authUser
+    password: authPass
+```

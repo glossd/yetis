@@ -161,7 +161,7 @@ func needName() {
 func printHelp() {
 	fmt.Printf(`The commands are:
 Server Commands:
-	start [-f]              start Yetis server
+	start [-f FILENAME]     start Yetis server
 	shutdown                terminate Yetis server
 	info                    print server status
 Resources Commands:
