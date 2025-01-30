@@ -2,11 +2,13 @@ package server
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/proxy"
 	"log"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -15,24 +17,13 @@ import (
 
 func PostDeployment(req fetch.Request[common.DeploymentSpec]) error {
 	spec := req.Body
+	// Validation
 	if spec.Strategy.Type == common.Recreate {
 		if spec.Proxy.Port == 0 && spec.LivenessProbe.Port() == 0 {
 			return fmt.Errorf("either livenessProbe.tcpSocket.port or proxy.port must be specified for Recreate strategy")
 		}
 	}
 	if spec.Strategy.Type == common.RollingUpdate {
-		// check the name was upgraded
-		var err error
-		deploymentStore.Range(func(name string, d deployment) bool {
-			if spec.Name == rootNameForRollingUpdate(name) {
-				err = fmt.Errorf("deployment '%s' has a rolling update name: %s", spec.Name, name)
-				return false
-			}
-			return true
-		})
-		if err != nil {
-			return err
-		}
 		if spec.LivenessProbe.Port() > 0 {
 			return fmt.Errorf("livenessProxy.tcpSocket.port can't be specified with RollingUpdate strategy")
 		}
@@ -45,6 +36,23 @@ func PostDeployment(req fetch.Request[common.DeploymentSpec]) error {
 		return fmt.Errorf("livenessProxy.tcpSocket.port can't be specified with proxy.port")
 	}
 
+	// If the deployment already exists, restart it
+	if d, ok := getDeploymentByRootName(spec.Name); ok {
+		if d.spec.Strategy.Type != spec.Strategy.Type {
+			return fmt.Errorf("couldn't restart deployment '%s': strategy.type must be the same, delete the existing one and apply again", spec.Name)
+		}
+		if d.spec.Proxy.Port != spec.Proxy.Port {
+			return fmt.Errorf("couldn't restart deployment '%s': proxy.prot must be the same, delete the existing one and apply again", spec.Name)
+		}
+
+		if reflect.DeepEqual(d.spec, spec) {
+			return restartDeployment(req.Context, spec.Name, nil)
+		}
+
+		return restartDeployment(req.Context, spec.Name, &spec)
+	}
+
+	// Begin creating the deployment
 	spec, err := setYetisPortEnv(spec.WithDefaults().(common.DeploymentSpec))
 	if err != nil {
 		return err
@@ -254,7 +262,10 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 	if name == "" {
 		return fmt.Errorf(`name can't be empty`)
 	}
+	return restartDeployment(r.Context, name, nil)
+}
 
+func restartDeployment(ctx context.Context, name string, reapplySpec *common.DeploymentSpec) error {
 	oldDeployment, ok := getDeployment(name)
 	if !ok {
 		return fmt.Errorf(`deployment '%s' doesn't exist'`, name)
@@ -303,13 +314,14 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 		time.Sleep(50 * time.Millisecond)
 
 		// delete old deployment
-		err = DeleteDeployment(fetch.Request[fetch.Empty]{Context: r.Context, PathValues: map[string]string{"name": oldDeployment.spec.Name}})
+		err = DeleteDeployment(fetch.Request[fetch.Empty]{Context: ctx, PathValues: map[string]string{"name": oldDeployment.spec.Name}})
 		if err != nil {
 			return fmt.Errorf("failed to delete old deployment '%s': %s", oldDeployment.spec.Name, err)
 		}
 
 	} else {
-		err := terminateProcess(r.Context, oldDeployment)
+		// todo reapplySpec for apply restart
+		err := terminateProcess(ctx, oldDeployment)
 		if err != nil {
 			return fmt.Errorf("failed to terminate deployment's process: %s", err)
 		}

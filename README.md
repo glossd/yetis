@@ -26,7 +26,8 @@ Yetis will start in the background. You can pass [yetis configuration](#yetis-se
 ```shell
 yetis apply -f config.yaml
 ``` 
-[Configuration](#Configuration-examples)  
+`apply` will also restart the existing processes.  
+Have a look at the example [configuration](#Configuration-examples)  
 
 #### List the managed processes
 `yetis list` will show the list of the processes.    
@@ -36,11 +37,11 @@ Add flag `-w` to watch the updates
 #### Full list of commands
 ```
 Server Commands:
-	start [-d]              start Yetis server
+	start [-f FILENAME]     start Yetis server
 	shutdown                terminate Yetis server
 	info                    print server status
 Resources Commands:
-	apply -f FILENAME       apply a configuration from yaml file
+	apply -f FILENAME       apply a configuration from yaml file. Creates new deployments or restarts existing ones
 	list [-w]               print a list the managed deployment
 	logs [-f] NAME          print the logs of the deployment with NAME
 	describe NAME           print a detailed description of the selected deployment
