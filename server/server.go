@@ -39,7 +39,7 @@ func Run(configPath string) {
 
 	mux.HandleFunc("GET /deployments", fetch.ToHandlerFuncEmptyIn(ListDeployment))
 	mux.HandleFunc("GET /deployments/{name}", fetch.ToHandlerFunc(GetDeployment))
-	mux.HandleFunc("POST /deployments", fetch.ToHandlerFuncEmptyOut(PostDeployment))
+	mux.HandleFunc("POST /deployments", fetch.ToHandlerFunc(CreateOrRestartDeployment))
 	mux.HandleFunc("DELETE /deployments/{name}", fetch.ToHandlerFuncEmptyOut(DeleteDeployment))
 	mux.HandleFunc("PUT /deployments/{name}/restart", fetch.ToHandlerFuncEmptyOut(RestartDeployment))
 

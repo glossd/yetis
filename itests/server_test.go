@@ -2,6 +2,7 @@ package itests
 
 import (
 	"fmt"
+	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/client"
 	_ "github.com/glossd/yetis/client"
 	"github.com/glossd/yetis/common"
@@ -77,6 +78,40 @@ func TestLivenessRestart(t *testing.T) {
 	})
 	if !common.IsPortOpenRetry(27000, 50*time.Millisecond, 20) {
 		t.Fatal("deployment port should be open after restart")
+	}
+}
+
+func TestRestartThroughApply_RecreateStrategy(t *testing.T) {
+	go server.Run("")
+	t.Cleanup(server.Stop)
+	time.Sleep(time.Millisecond)
+	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+
+	oldD, err := client.GetDeployment("hello")
+	assert(t, err, nil)
+
+	checkDeploymentRunning(t, "hello")
+
+	res, err := fetch.Post[server.CRDeploymentResponse]("/deployments", common.DeploymentSpec{
+		Name:          "hello",
+		Cmd:           "nc -lk 27000",
+		Logdir:        "stdout",
+		LivenessProbe: common.Probe{TcpSocket: common.TcpSocket{Port: 27000}},
+		Env:           []common.EnvVar{{Name: "NEW_ENV", Value: "Hello World"}},
+	}.WithDefaults())
+	assert(t, err, nil)
+	assert(t, res.Existed, true)
+	d, err := client.GetDeployment("hello")
+	assert(t, err, nil)
+	if oldD.Pid == d.Pid {
+		t.Errorf("expected to restart the deployment: %+v", d)
+	}
+	assert(t, oldD.Spec.GetEnv("NEW_ENV"), "")
+	if d.Spec.GetEnv("NEW_ENV") != "Hello World" {
+		t.Errorf("expected new env to be set from the restart: %+v", d)
 	}
 }
 
