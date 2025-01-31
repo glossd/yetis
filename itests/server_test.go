@@ -146,6 +146,8 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 }
 
 func TestDeleteAllDeploymentChildProcesses(t *testing.T) {
+	//unix.KillByPort(27000, true)
+	//unix.KillByPort(27001, true)
 	go server.Run("")
 	t.Cleanup(server.Stop)
 	time.Sleep(time.Millisecond)
@@ -163,9 +165,9 @@ func TestDeleteAllDeploymentChildProcesses(t *testing.T) {
 	assert(t, err, nil)
 
 	if !common.IsPortCloseRetry(27000, 20*time.Millisecond, 5) {
-		t.Fatal("main process should be dead")
+		t.Errorf("main process should be dead")
 	}
 	if !common.IsPortCloseRetry(27001, 20*time.Millisecond, 5) {
-		t.Fatal("subprocess should be dead")
+		t.Errorf("subprocess should be dead")
 	}
 }

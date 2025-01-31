@@ -52,6 +52,35 @@ func TerminateProcess(ctx context.Context, pid int) error {
 	}
 }
 
+func TerminateGroupProcess(ctx context.Context, parentPid int) error {
+	pgid, err := syscall.Getpgid(parentPid)
+	if err != nil {
+		return err
+	}
+	err = syscall.Kill(-pgid, syscall.SIGTERM)
+	if err != nil {
+		return err
+	}
+
+	// Wait until the process terminates, but think of the children! todo
+	for {
+		select {
+		case <-ctx.Done():
+			err = syscall.Kill(-pgid, syscall.SIGKILL)
+			if err != nil {
+				log.Printf("context deadline exceeded: failed to kill %d process group: %s\n", pgid, err)
+				return err
+			}
+			return context.DeadlineExceeded
+		default:
+			if !IsProcessAlive(parentPid) {
+				return nil
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+}
+
 func IsProcessAlive(pid int) bool {
 	// 'ps -o pid= -p $PID' command works on MacOS and Linux
 	res, err := exec.Command("ps", "-o", "pid=", "-o", "command=", "-p", strconv.Itoa(pid)).Output()

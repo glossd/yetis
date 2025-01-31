@@ -50,6 +50,12 @@ func CreateOrRestartDeployment(req fetch.Request[common.DeploymentSpec]) (*CRDep
 		return &CRDeploymentResponse{Existed: true}, nil
 	}
 
+	if spec.LivenessProbe.Port() > 0 {
+		if common.IsPortOpen(spec.LivenessProbe.Port()) {
+			return nil, fmt.Errorf("port of livenessProbe %d is already busy", spec.LivenessProbe.Port())
+		}
+	}
+
 	// Begin creating the deployment
 	spec, err := setYetisPortEnv(spec.WithDefaults().(common.DeploymentSpec))
 	if err != nil {
@@ -238,7 +244,7 @@ func DeleteDeployment(r fetch.Request[fetch.Empty]) error {
 
 	updateDeploymentStatus(name, Terminating)
 
-	err := terminateProcess(r.Context, d)
+	err := terminateProcess(r.Context, d.pid)
 	if err != nil {
 		return err
 	}
@@ -331,7 +337,7 @@ func restartDeployment(ctx context.Context, name string, reapplySpec *common.Dep
 		}
 
 	} else {
-		err := terminateProcess(ctx, oldDeployment)
+		err := terminateProcess(ctx, oldDeployment.pid)
 		if err != nil {
 			return fmt.Errorf("failed to terminate deployment's process: %s", err)
 		}
