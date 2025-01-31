@@ -101,6 +101,24 @@ func getDeployment(name string) (deployment, bool) {
 	return deploymentStore.Load(name)
 }
 
+func getDeploymentByRootName(rootName string) (deployment, bool) {
+	var dep deployment
+	var found bool
+	dep, found = getDeployment(rootName)
+	if found {
+		return dep, found
+	}
+	deploymentStore.Range(func(name string, d deployment) bool {
+		if rootName == rootNameForRollingUpdate(name) {
+			found = true
+			dep = d
+			return false
+		}
+		return true
+	})
+	return dep, found
+}
+
 func getDeploymentStatus(name string) (ProcessStatus, bool) {
 	dep, ok := deploymentStore.Load(name)
 	if !ok {

@@ -188,6 +188,36 @@ func TestDeploymentRestartWithNewYetisPort(t *testing.T) {
 	}
 }
 
+func TestRestartThroughApply_RollingUpdateStrategy(t *testing.T) {
+	skipIfNotIptables(t)
+
+	go server.Run("")
+	t.Cleanup(server.Stop)
+	time.Sleep(time.Millisecond)
+	errs := client.Apply(pwd(t) + "/specs/app-port.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+
+	firstDep, err := client.GetDeployment("go")
+	assert(t, err, nil)
+
+	checkDeploymentRunning(t, "go")
+
+	errs = client.Apply(pwd(t) + "/specs/app-port.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+
+	checkDeploymentRunning(t, "go-1")
+
+	secondDep, err := client.GetDeployment("go-1")
+	assert(t, err, nil)
+	if firstDep.Spec.LivenessProbe.Port() == secondDep.Spec.LivenessProbe.Port() {
+		t.Error("ports supposed to be different")
+	}
+}
+
 func skipIfNotIptables(t *testing.T) {
 	if os.Getenv("TEST_IPTABLES") == "" {
 		t.SkipNow()

@@ -178,12 +178,16 @@ func Apply(path string) []error {
 		switch config.Spec.Kind() {
 		case common.Deployment:
 			spec := config.Spec.(common.DeploymentSpec)
-			_, err := fetch.Post[fetch.Empty]("/deployments", spec)
+			res, err := fetch.Post[server.CRDeploymentResponse]("/deployments", spec)
 			if err != nil {
 				errs = append(errs, err)
 				fmt.Printf("Failure applying %s deployment: %s\n", spec.Name, err)
 			} else {
-				fmt.Printf("Successfully applied %s deployment\n", spec.Name)
+				if res.Existed {
+					fmt.Printf("Restarted %s deployment successfully\n", spec.Name)
+				} else {
+					fmt.Printf("Created %s deployment successfully\n", spec.Name)
+				}
 			}
 		}
 	}
