@@ -144,3 +144,28 @@ func TestShutdown_DeleteDeployments(t *testing.T) {
 		t.Fatal("server should've stopped")
 	}
 }
+
+func TestDeleteAllDeploymentChildProcesses(t *testing.T) {
+	go server.Run("")
+	t.Cleanup(server.Stop)
+	time.Sleep(time.Millisecond)
+	errs := client.Apply(pwd(t) + "/specs/subproc.yaml")
+	if len(errs) != 0 {
+		t.Fatalf("apply errors: %v", errs)
+	}
+
+	checkDeploymentRunning(t, "subproc")
+	// check subprocess is running
+	if !common.IsPortOpenRetry(27001, 20*time.Millisecond, 5) {
+		t.Fatal("subprocess isn't running")
+	}
+	err := client.DeleteDeployment("subproc")
+	assert(t, err, nil)
+
+	if !common.IsPortCloseRetry(27000, 20*time.Millisecond, 5) {
+		t.Fatal("main process should be dead")
+	}
+	if !common.IsPortCloseRetry(27001, 20*time.Millisecond, 5) {
+		t.Fatal("subprocess should be dead")
+	}
+}

@@ -1,0 +1,10 @@
+spec:
+  name: subproc
+  preCmd: go build -o main cmd/subproc/main.go
+  cmd: ./main
+  logdir: stdout
+  livenessProbe:
+    tcpSocket:
+      port: 27000
+    initialDelaySeconds: 1
+    periodSeconds: 0.1
