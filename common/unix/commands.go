@@ -52,23 +52,23 @@ func TerminateProcess(ctx context.Context, pid int) error {
 	}
 }
 
-func TerminateGroupProcess(ctx context.Context, parentPid int) error {
-	pgid, err := syscall.Getpgid(parentPid)
+func TerminateSession(ctx context.Context, parentPid int) error {
+	sid, err := syscall.Getsid(parentPid)
 	if err != nil {
 		return err
 	}
-	err = syscall.Kill(-pgid, syscall.SIGTERM)
+	err = syscall.Kill(-sid, syscall.SIGTERM)
 	if err != nil {
 		return err
 	}
 
-	// Wait until the process terminates, but think of the children! todo
+	// Wait until the process terminates, but think of the children!
 	for {
 		select {
 		case <-ctx.Done():
-			err = syscall.Kill(-pgid, syscall.SIGKILL)
+			err = syscall.Kill(-sid, syscall.SIGKILL)
 			if err != nil {
-				log.Printf("context deadline exceeded: failed to kill %d process group: %s\n", pgid, err)
+				log.Printf("context deadline exceeded: failed to kill %d session: %s\n", sid, err)
 				return err
 			}
 			return context.DeadlineExceeded

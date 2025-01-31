@@ -130,7 +130,7 @@ func getLogCounter(name, logDir string) int {
 
 func terminateProcess(ctx context.Context, pid int) error {
 	if pid != 0 {
-		err := unix.TerminateGroupProcess(ctx, pid)
+		err := unix.TerminateSession(ctx, pid)
 		if err != nil && err != context.DeadlineExceeded {
 			return err
 		}
