@@ -3,6 +3,7 @@ package unix
 import (
 	"context"
 	"fmt"
+	xunix "golang.org/x/sys/unix"
 	"io"
 	"log"
 	"os"
@@ -53,7 +54,8 @@ func TerminateProcess(ctx context.Context, pid int) error {
 
 // Blocking. Once context expires, it sends SIGKILL.
 func TerminateSession(ctx context.Context, parentPid int) error {
-	sid, err := syscall.Getsid(parentPid)
+	// syscall doesn't have Getsid for Linix, and it has been frozen.
+	sid, err := xunix.Getsid(parentPid)
 	if err != nil {
 		return err
 	}
