@@ -20,7 +20,6 @@ func TerminateProcessTimeout(pid int, timeout time.Duration) error {
 	return TerminateProcess(ctx, pid)
 }
 
-// Blocking. Once context expires, it sends SIGKILL.
 func TerminateProcess(ctx context.Context, pid int) error {
 	process, err := os.FindProcess(pid)
 	if err != nil {
@@ -52,6 +51,7 @@ func TerminateProcess(ctx context.Context, pid int) error {
 	}
 }
 
+// Blocking. Once context expires, it sends SIGKILL.
 func TerminateSession(ctx context.Context, parentPid int) error {
 	sid, err := syscall.Getsid(parentPid)
 	if err != nil {
