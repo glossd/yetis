@@ -141,7 +141,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		updateDeploymentStatus(oldSpec.Name, Terminating)
 		ctx, cancelCtx := context.WithTimeout(context.Background(), oldSpec.LivenessProbe.PeriodDuration())
 		defer cancelCtx()
-		err := terminateProcess(ctx, p)
+		err := terminateProcess(ctx, p.pid)
 		if err != nil {
 			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", oldSpec.Name, p.pid)
 		} else {

@@ -3,6 +3,7 @@ package unix
 import (
 	"context"
 	"fmt"
+	xunix "golang.org/x/sys/unix"
 	"io"
 	"log"
 	"os"
@@ -20,7 +21,6 @@ func TerminateProcessTimeout(pid int, timeout time.Duration) error {
 	return TerminateProcess(ctx, pid)
 }
 
-// Blocking. Once context expires, it sends SIGKILL.
 func TerminateProcess(ctx context.Context, pid int) error {
 	process, err := os.FindProcess(pid)
 	if err != nil {
@@ -45,6 +45,37 @@ func TerminateProcess(ctx context.Context, pid int) error {
 			return context.DeadlineExceeded
 		default:
 			if !IsProcessAlive(process.Pid) {
+				return nil
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+}
+
+// Blocking. Once context expires, it sends SIGKILL.
+func TerminateSession(ctx context.Context, parentPid int) error {
+	// syscall doesn't have Getsid for Linix, and it has been frozen.
+	sid, err := xunix.Getsid(parentPid)
+	if err != nil {
+		return err
+	}
+	err = syscall.Kill(-sid, syscall.SIGTERM)
+	if err != nil {
+		return err
+	}
+
+	// Wait until the process terminates, but think of the children!
+	for {
+		select {
+		case <-ctx.Done():
+			err = syscall.Kill(-sid, syscall.SIGKILL)
+			if err != nil {
+				log.Printf("context deadline exceeded: failed to kill %d session: %s\n", sid, err)
+				return err
+			}
+			return context.DeadlineExceeded
+		default:
+			if !IsProcessAlive(parentPid) {
 				return nil
 			}
 			time.Sleep(5 * time.Millisecond)

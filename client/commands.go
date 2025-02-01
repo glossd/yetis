@@ -156,7 +156,7 @@ func GetDeployment(name string) (server.DeploymentFullInfo, error) {
 	return fetch.Get[server.DeploymentFullInfo]("/deployments/" + name)
 }
 
-func DeleteDeployment(name string) {
+func DeleteDeployment(name string) error {
 	versionsWarning()
 	_, err := fetch.Delete[fetch.Empty]("/deployments/" + name)
 	if err != nil {
@@ -164,6 +164,7 @@ func DeleteDeployment(name string) {
 	} else {
 		fmt.Printf("Successfully deleted '%s' deployment\n", name)
 	}
+	return err
 }
 
 func Apply(path string) []error {

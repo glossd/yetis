@@ -38,11 +38,16 @@ func TestTerminateProcess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error launching process: %s", err)
 	}
+	pid := cmd.Process.Pid
 
 	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
 	err = TerminateProcess(ctx, cmd.Process.Pid)
 	if err != nil {
 		t.Fatalf("failed to terminated the process: %s", err)
+	}
+
+	if IsProcessAlive(pid) {
+		t.Errorf("process is still alive")
 	}
 }
 

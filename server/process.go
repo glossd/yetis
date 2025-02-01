@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 var logNamePattern = regexp.MustCompile("^[a-zA-Z]+-(\\d+).log$")
@@ -69,6 +70,7 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 		cmd.Stderr = w
 	}
 	cmd.Dir = c.Workdir
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if wait {
 		err = cmd.Run()
 	} else {
@@ -126,14 +128,12 @@ func getLogCounter(name, logDir string) int {
 	return highest
 }
 
-func terminateProcess(ctx context.Context, r resource) error {
-	if r.getPid() != 0 {
-		err := unix.TerminateProcess(ctx, r.getPid())
+func terminateProcess(ctx context.Context, pid int) error {
+	if pid != 0 {
+		err := unix.TerminateSession(ctx, pid)
 		if err != nil && err != context.DeadlineExceeded {
 			return err
 		}
 	}
-	// todo instead of killing by port, terminate function should terminate all children as well.
-	unix.KillByPort(r.getPort(), false)
 	return nil
 }
