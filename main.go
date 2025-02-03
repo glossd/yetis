@@ -165,12 +165,12 @@ Server Commands:
 	shutdown                terminate Yetis server
 	info                    print server status
 Resources Commands:
-	apply -f FILENAME       apply a configuration from yaml file. Creates new deployments or restarts existing ones
-	list [-w]               print a list the managed deployment
-	logs [-f] NAME          print the logs of the deployment with NAME
+	apply -f FILENAME       apply a process configuration from yaml file, creates new or restarts existing ones.
+	list [-w]               print a list the deployments
+	logs [-f] NAME          print the logs of the selected deployment 
 	describe NAME           print a detailed description of the selected deployment
-	delete NAME             delete the deployment, terminating its process
-	restart NAME            restart the deployment according to its strategy type 
+	delete NAME             delete and terminate the selected deployment
+	restart NAME            restart the selected deployment according to its strategy type 
 	help                    print the list of the commands
 `)
 }
