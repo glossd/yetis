@@ -47,7 +47,7 @@ func Run(configPath string) {
 }
 
 var quit = make(chan os.Signal)
-var finished = make(chan bool)
+var finished = make(chan bool, 1)
 
 // https://github.com/gin-gonic/examples/blob/master/graceful-shutdown/graceful-shutdown/server.go
 func runWithGracefulShutDown(r *http.ServeMux) {
