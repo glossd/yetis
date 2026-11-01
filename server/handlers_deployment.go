@@ -41,7 +41,8 @@ func CreateOrRestartDeployment(req fetch.Request[common.DeploymentSpec]) (*CRDep
 	}
 
 	// If the deployment already exists, restart it
-	if d, ok := getDeploymentByRootName(spec.Name); ok {
+	d, count := getDeploymentByRootName(spec.Name)
+	if count > 0 {
 		nameNum := d.spec.Name
 		err := restartDeployment(req.Context, nameNum, &spec)
 		if err != nil {
@@ -212,12 +213,19 @@ func GetDeployment(r fetch.Request[fetch.Empty]) (*DeploymentFullInfo, error) {
 	if name == "" {
 		return nil, fmt.Errorf("name can't be empty")
 	}
-	p, ok := deploymentStore.Load(name)
-	if !ok {
+	d, count := getDeploymentByRootName(name)
+	if count == 0 {
 		return nil, fmt.Errorf("name '%s' doesn't exist", name)
 	}
+	if count > 1 {
+		var ok bool
+		d, ok = getDeployment(name)
+		if !ok {
+			return nil, fmt.Errorf("found multiple deployments of '%s', none matched exactly the provided name", name)
+		}
+	}
 
-	return deploymentToInfo(p), nil
+	return deploymentToInfo(d), nil
 }
 
 func deploymentToInfo(p deployment) *DeploymentFullInfo {
@@ -270,9 +278,12 @@ func RestartDeployment(r fetch.Request[fetch.Empty]) error {
 }
 
 func restartDeployment(ctx context.Context, name string, reapplySpec *common.DeploymentSpec) error {
-	oldDeployment, ok := getDeployment(name)
-	if !ok {
+	oldDeployment, count := getDeploymentByRootName(name)
+	if count == 0 {
 		return fmt.Errorf(`deployment '%s' doesn't exist'`, name)
+	}
+	if count > 1 {
+		return fmt.Errorf("found more than one deployment  of '%s'", name)
 	}
 
 	if reapplySpec != nil {
