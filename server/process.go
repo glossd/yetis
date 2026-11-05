@@ -39,9 +39,15 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 	if c.PreCmd != "" {
 		cmd := exec.Command("sh", "-c", c.PreCmd)
 		cmd.Dir = c.Workdir
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: getSysCreds()}
 		err := cmd.Run()
 		if err != nil {
-			return 0, fmt.Errorf("running precmd error: %s", err)
+			exitErr, ok := err.(*exec.ExitError)
+			exitCode := 0
+			if ok {
+				exitCode = exitErr.ExitCode()
+			}
+			return 0, fmt.Errorf("running precmd error: %s (command: %q, exit code: %d)", err, c.PreCmd, exitCode)
 		}
 	}
 	var ev strings.Builder
@@ -70,7 +76,7 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 		cmd.Stderr = w
 	}
 	cmd.Dir = c.Workdir
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Credential: getSysCreds()}
 	if wait {
 		err = cmd.Run()
 	} else {
@@ -136,4 +142,16 @@ func terminateProcess(ctx context.Context, pid int) error {
 		}
 	}
 	return nil
+}
+
+func getSysCreds() *syscall.Credential {
+	if serverConfig.Deployment.Username == "" {
+		return nil
+	}
+	uid, gid, err := unix.GetUserIdAndGroupId(serverConfig.Deployment.Username)
+	if err != nil {
+		log.Printf("Warning: Couldn't get uid, gid of the deployment user: %s\n", err)
+		return nil
+	}
+	return &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
 }

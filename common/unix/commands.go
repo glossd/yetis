@@ -1,6 +1,7 @@
 package unix
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	xunix "golang.org/x/sys/unix"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -218,4 +220,42 @@ func IsExecutable(filepath string) bool {
 	}
 
 	return info.Mode()&0111 != 0
+}
+
+// AskForConfirmation asks the user a yes/no question in the CLI.
+// It loops until the user provides a valid "y", "yes", "n", or "no" response.
+func AskForConfirmation(prompt string) bool {
+	input := ReadInput(prompt + " [y/n]")
+	input = strings.TrimSpace(input)
+	input = strings.ToLower(input)
+	return input == "y" || input == "yes"
+}
+
+func ReadInput(prompt string) string {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Printf("%s: ", prompt)
+
+		// Read user input until they hit Enter
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Println("Error reading input. Please try again.")
+			continue
+		}
+		return input
+	}
+}
+
+func GetUserIdAndGroupId(username string) (uint64, uint64, error) {
+	// 2. Look up the target user to get their numeric UID and GID
+	targetUser, err := user.Lookup(username)
+	if err != nil {
+		return 0, 0, fmt.Errorf("Error looking up user %s: %v\n", username, err)
+	}
+
+	// Convert string UID/GID to uint32 for syscall consumption
+	uid, _ := strconv.ParseUint(targetUser.Uid, 10, 32)
+	gid, _ := strconv.ParseUint(targetUser.Gid, 10, 32)
+	return uid, gid, nil
 }

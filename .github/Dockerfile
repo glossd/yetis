@@ -1,6 +1,7 @@
 FROM golang:1.23
 RUN apt update
 RUN apt install -y lsof iptables
+RUN apt install netcat-openbsd
 CMD ["/bin/bash"]
 
 

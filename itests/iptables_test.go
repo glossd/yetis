@@ -233,6 +233,7 @@ func pwd(t *testing.T) string {
 }
 
 func checkDeploymentRunning(t *testing.T, name string) {
+	t.Helper()
 	forTimeout(t, 5*time.Second, func() bool {
 		dep, err := client.GetDeployment(name)
 		if err != nil {
@@ -246,6 +247,7 @@ func checkDeploymentRunning(t *testing.T, name string) {
 }
 
 func checkDeploymentRestarted(t *testing.T, name string) {
+	t.Helper()
 	forTimeout(t, 5*time.Second, func() bool {
 		dep, err := client.GetDeployment(name)
 		if err != nil {

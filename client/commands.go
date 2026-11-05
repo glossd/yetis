@@ -7,9 +7,11 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/server"
+	"log"
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"sigs.k8s.io/yaml"
 	"syscall"
@@ -46,6 +48,30 @@ func StartBackground(pathToConfig string) {
 	c := common.YetisConfig{}.WithDefaults()
 	if pathToConfig != "" {
 		c = common.ReadServerConfig(pathToConfig)
+	}
+
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Fatalf("Unable to get current user: %s\n", err)
+	}
+	if currentUser.Username == "root" {
+		if c.Deployment.Username == "" {
+			fmt.Println("Warning: deployment.username is not configured, the commands will be executed with root user.")
+			yes := unix.AskForConfirmation("Do you still want to proceed?")
+			if !yes {
+				os.Exit(0)
+			}
+		} else {
+			if _, _, err := unix.GetUserIdAndGroupId(c.Deployment.Username); err != nil {
+				log.Fatalf("Unable to get user id and group id of %s: %s\n", c.Deployment.Username, err)
+			}
+		}
+	} else {
+		fmt.Println("Running not as root, proxy directive will not work.")
+		yes := unix.AskForConfirmation("Do you still want to proceed?")
+		if !yes {
+			os.Exit(0)
+		}
 	}
 
 	logFilePath := filepath.Join(c.Logdir, "yetis.log")
