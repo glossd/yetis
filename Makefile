@@ -1,6 +1,7 @@
 
 compile:
-	GOOS=linux GOARCH=amd64 go build -o yetis main.go && chmod +x yetis && mv yetis build/
+	@GOOS=linux GOARCH=amd64 go build -o yetis main.go && chmod +x yetis && mv yetis build/ && echo "Compiled successfully! Don't forget to upgrade YetisVersion in common/versions.go"
+
 
 test:
 	make test_basic

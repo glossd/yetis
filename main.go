@@ -30,6 +30,8 @@ func main() {
 	}
 
 	switch args[1] {
+	case "version":
+		fallthrough
 	case "info":
 		client.Info()
 		fmt.Printf("Client: version=%s\n", common.YetisVersion)
