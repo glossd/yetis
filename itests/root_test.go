@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestRoot_RunDeploymentFromYetisConfig(t *testing.T) {
@@ -20,7 +19,8 @@ func TestRoot_RunDeploymentFromYetisConfig(t *testing.T) {
 	configPath := pwd(t) + "/cfg/yetis-deployment-username.yaml"
 	go server.Run(configPath)
 	t.Cleanup(server.Stop)
-	time.Sleep(time.Millisecond)
+	waitForServerToStart(t)
+
 	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)

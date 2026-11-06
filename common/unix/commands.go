@@ -3,6 +3,7 @@ package unix
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	xunix "golang.org/x/sys/unix"
 	"io"
@@ -238,6 +239,10 @@ func ReadInput(prompt string) string {
 		// Read user input until they hit Enter
 		input, err := reader.ReadString('\n')
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				fmt.Println("\nReached EOF. Stopping input.")
+				return input
+			}
 			fmt.Println("Error reading input. Please try again.")
 			continue
 		}

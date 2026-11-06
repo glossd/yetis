@@ -10,13 +10,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
 )
-
-var logNamePattern = regexp.MustCompile("^[a-zA-Z]+-(\\d+).log$")
 
 func launchProcess(c common.DeploymentSpec, wait bool) (pid int, logPath string, err error) {
 	if c.Logdir == "stdout" {
@@ -37,10 +34,14 @@ func launchProcess(c common.DeploymentSpec, wait bool) (pid int, logPath string,
 
 func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int, error) {
 	if c.PreCmd != "" {
+		sysCreds, err := getSysCreds()
+		if err != nil {
+			return 0, fmt.Errorf("failed to run preCmd command: %s", err)
+		}
 		cmd := exec.Command("sh", "-c", c.PreCmd)
 		cmd.Dir = c.Workdir
-		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: getSysCreds()}
-		err := cmd.Run()
+		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: sysCreds}
+		err = cmd.Run()
 		if err != nil {
 			exitErr, ok := err.(*exec.ExitError)
 			exitCode := 0
@@ -50,6 +51,11 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 			return 0, fmt.Errorf("running precmd error: %s (command: %q, exit code: %d)", err, c.PreCmd, exitCode)
 		}
 	}
+	sysCreds, err := getSysCreds()
+	if err != nil {
+		return 0, fmt.Errorf("failed to run cmd command: %s", err)
+	}
+
 	var ev strings.Builder
 	for i, envVar := range c.Env {
 		if i > 0 {
@@ -65,7 +71,7 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 		}
 		ev.WriteString(fmt.Sprintf("%s='%s'", envVar.Name, val))
 	}
-	err := checkExecutable(c)
+	err = checkExecutable(c)
 	if err != nil {
 		return 0, err
 	}
@@ -76,7 +82,7 @@ func launchProcessWithOut(c common.DeploymentSpec, w io.Writer, wait bool) (int,
 		cmd.Stderr = w
 	}
 	cmd.Dir = c.Workdir
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Credential: getSysCreds()}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Credential: sysCreds}
 	if wait {
 		err = cmd.Run()
 	} else {
@@ -144,14 +150,13 @@ func terminateProcess(ctx context.Context, pid int) error {
 	return nil
 }
 
-func getSysCreds() *syscall.Credential {
+func getSysCreds() (*syscall.Credential, error) {
 	if serverConfig.Deployment.Username == "" {
-		return nil
+		return nil, nil
 	}
 	uid, gid, err := unix.GetUserIdAndGroupId(serverConfig.Deployment.Username)
 	if err != nil {
-		log.Printf("Warning: Couldn't get uid, gid of the deployment user: %s\n", err)
-		return nil
+		return nil, fmt.Errorf("couldn't get uid/gid of deployment user %s: %s", serverConfig.Deployment.Username, err)
 	}
-	return &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+	return &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}, nil
 }

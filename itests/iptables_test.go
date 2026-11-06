@@ -19,8 +19,7 @@ func TestProxyUpdatesWhenDeploymentRestartsOnLivenessFailure(t *testing.T) {
 	skipIfNotIptables(t)
 	go server.Run("")
 	t.Cleanup(server.Stop)
-	// let the server start
-	time.Sleep(5 * time.Millisecond)
+	waitForServerToStart(t)
 
 	errs := client.Apply(pwd(t) + "/specs/main-proxy.yaml")
 	if len(errs) != 0 {
@@ -91,8 +90,7 @@ func TestRestart_RollingUpdate_ZeroDowntime(t *testing.T) {
 	skipIfNotIptables(t)
 	go server.Run("")
 	t.Cleanup(server.Stop)
-	// let the server start
-	time.Sleep(5 * time.Millisecond)
+	waitForServerToStart(t)
 
 	errs := client.Apply(pwd(t) + "/specs/main-rolling-update.yaml")
 	if len(errs) != 0 {
@@ -150,8 +148,7 @@ func TestDeploymentRestartWithNewYetisPort(t *testing.T) {
 	skipIfNotIptables(t)
 	go server.Run("")
 	t.Cleanup(server.Stop)
-	// let the server start
-	time.Sleep(5 * time.Millisecond)
+	waitForServerToStart(t)
 
 	errs := client.Apply(pwd(t) + "/specs/app-port.yaml")
 	if len(errs) != 0 {
@@ -193,7 +190,7 @@ func TestRestartThroughApply_RollingUpdateStrategy(t *testing.T) {
 
 	go server.Run("")
 	t.Cleanup(server.Stop)
-	time.Sleep(time.Millisecond)
+	waitForServerToStart(t)
 	errs := client.Apply(pwd(t) + "/specs/app-port.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
@@ -274,6 +271,12 @@ loop:
 				break loop
 			}
 		}
+	}
+}
+
+func waitForServerToStart(t *testing.T) {
+	if !common.IsPortOpenRetry(server.YetisServerPort, time.Millisecond, 10) {
+		t.Fatal("yetis server hasn't started")
 	}
 }
 
