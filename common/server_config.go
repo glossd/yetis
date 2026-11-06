@@ -11,8 +11,9 @@ import (
 )
 
 type YetisConfig struct {
-	Logdir   string
-	Alerting Alerting
+	Logdir     string
+	Deployment GlobalDeploymentConfig
+	Alerting   Alerting
 }
 
 func (yc YetisConfig) WithDefaults() YetisConfig {
@@ -20,6 +21,10 @@ func (yc YetisConfig) WithDefaults() YetisConfig {
 		yc.Logdir = "/tmp"
 	}
 	return yc
+}
+
+type GlobalDeploymentConfig struct {
+	Username string
 }
 
 type Alerting struct {

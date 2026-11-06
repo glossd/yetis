@@ -24,8 +24,7 @@ func TestLivenessRestart(t *testing.T) {
 	unix.KillByPort(server.YetisServerPort, true)
 	go server.Run("")
 	t.Cleanup(server.Stop)
-	// let the server start
-	time.Sleep(time.Millisecond)
+	waitForServerToStart(t)
 
 	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
 	if len(errs) != 0 {
@@ -84,7 +83,7 @@ func TestLivenessRestart(t *testing.T) {
 func TestRestartThroughApply_RecreateStrategy(t *testing.T) {
 	go server.Run("")
 	t.Cleanup(server.Stop)
-	time.Sleep(time.Millisecond)
+	waitForServerToStart(t)
 	errs := client.Apply(pwd(t) + "/specs/nc.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)
@@ -150,7 +149,7 @@ func TestDeleteAllDeploymentChildProcesses(t *testing.T) {
 	//unix.KillByPort(27001, true)
 	go server.Run("")
 	t.Cleanup(server.Stop)
-	time.Sleep(time.Millisecond)
+	waitForServerToStart(t)
 	errs := client.Apply(pwd(t) + "/specs/subproc.yaml")
 	if len(errs) != 0 {
 		t.Fatalf("apply errors: %v", errs)

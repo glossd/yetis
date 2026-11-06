@@ -1,13 +1,16 @@
 package unix
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	xunix "golang.org/x/sys/unix"
 	"io"
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -218,4 +221,48 @@ func IsExecutable(filepath string) bool {
 	}
 
 	return info.Mode()&0111 != 0
+}
+
+func AskForConfirmation(prompt string) bool {
+	input := ReadInput(prompt + " [y/n]")
+	input = strings.TrimSpace(input)
+	input = strings.ToLower(input)
+	return input == "y" || input == "yes"
+}
+
+func ReadInput(prompt string) string {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Printf("%s: ", prompt)
+
+		// Read user input until they hit Enter
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				fmt.Println("\nReached EOF. Stopping input.")
+				return input
+			}
+			fmt.Println("Error reading input. Please try again.")
+			continue
+		}
+		return input
+	}
+}
+
+func GetUserIdAndGroupId(username string) (uint64, uint64, error) {
+	targetUser, err := user.Lookup(username)
+	if err != nil {
+		return 0, 0, fmt.Errorf("Error looking up user %s: %v\n", username, err)
+	}
+
+	uid, err := strconv.ParseUint(targetUser.Uid, 10, 32)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error converting user id to int: %v\n", err)
+	}
+	gid, err := strconv.ParseUint(targetUser.Gid, 10, 32)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error converting group id to int: %v\n", err)
+	}
+	return uid, gid, nil
 }

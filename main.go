@@ -5,9 +5,7 @@ import (
 	"github.com/glossd/yetis/client"
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/server"
-	"log"
 	"os"
-	"os/user"
 	"strconv"
 	"time"
 )
@@ -49,13 +47,6 @@ func main() {
 
 		server.Run(args[3])
 	case "start":
-		currentUser, err := user.Current()
-		if err != nil {
-			log.Fatalf("Unable to get current user: %s\n", err)
-		}
-		if currentUser.Username != "root" {
-			log.Println("Warning: not running as root, Yetis won't be to create a proxy")
-		}
 		if len(args) == 2 {
 			client.StartBackground("")
 			return

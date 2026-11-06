@@ -126,7 +126,9 @@ For now, yetis only supports mail alerting through SMTP.
 #### Full Yetis Configuration 
 ```yaml
 logdir: /tmp # yetis.log will be stored in there. Defaults to /tmp
-alerting: # Alerts when a managed process fails or recovers.
+deployment:
+  username: appuser # deployment commands (and pre-commands) will be run with the specified user, avoiding root
+alerting: # Alerts when a managed process fails or recovers
   mail: # add SMPT creds of your smpt server for alerting
     host: smtp.host.com
     port: 587
