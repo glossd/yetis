@@ -222,8 +222,6 @@ func IsExecutable(filepath string) bool {
 	return info.Mode()&0111 != 0
 }
 
-// AskForConfirmation asks the user a yes/no question in the CLI.
-// It loops until the user provides a valid "y", "yes", "n", or "no" response.
 func AskForConfirmation(prompt string) bool {
 	input := ReadInput(prompt + " [y/n]")
 	input = strings.TrimSpace(input)
@@ -248,14 +246,18 @@ func ReadInput(prompt string) string {
 }
 
 func GetUserIdAndGroupId(username string) (uint64, uint64, error) {
-	// 2. Look up the target user to get their numeric UID and GID
 	targetUser, err := user.Lookup(username)
 	if err != nil {
 		return 0, 0, fmt.Errorf("Error looking up user %s: %v\n", username, err)
 	}
 
-	// Convert string UID/GID to uint32 for syscall consumption
-	uid, _ := strconv.ParseUint(targetUser.Uid, 10, 32)
-	gid, _ := strconv.ParseUint(targetUser.Gid, 10, 32)
+	uid, err := strconv.ParseUint(targetUser.Uid, 10, 32)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error converting user id to int: %v\n", err)
+	}
+	gid, err := strconv.ParseUint(targetUser.Gid, 10, 32)
+	if err != nil {
+		return 0, 0, fmt.Errorf("error converting group id to int: %v\n", err)
+	}
 	return uid, gid, nil
 }

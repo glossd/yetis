@@ -53,6 +53,7 @@ func main() {
 		}
 		if len(args) != 4 || args[2] != "-f" {
 			printFlags("start", Flag{Def: "-f FILENAME", Des: "path to the yetis config"})
+			return
 		}
 
 		client.StartBackground(args[3])
