@@ -28,6 +28,9 @@ func Run(configPath string) {
 		serverConfig = common.ReadServerConfig(configPath)
 	}
 
+	closeDB := initDB("")
+	defer closeDB()
+
 	mux := http.NewServeMux()
 
 	fetch.SetHandlerConfig(fetch.HandlerConfig{
@@ -69,7 +72,6 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Printf("Shutting down Yetis server %s...\n", common.YetisVersion)
-
 	deleteDeploymentsGracefully()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -88,19 +90,29 @@ func Stop() {
 }
 
 func deleteDeploymentsGracefully() {
-	rangeDeployments(func(name string, p deployment) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		err := DeleteDeployment(fetch.Request[fetch.Empty]{
-			Context:    ctx,
-			PathValues: map[string]string{"name": name},
-		})
-		if err == nil {
-			log.Println("Deleted deployment", name)
-		} else {
-			log.Printf("Failed to delete %s deployment: %s\n", name, err)
-		}
-	})
+	deployments, err := getAllDeployments()
+	if err != nil {
+		log.Printf("Error getting all deployments during graceful shutdown: %s\n", err)
+	}
+
+	for _, d := range deployments {
+		func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			err := DeleteDeployment(fetch.Request[fetch.Empty]{
+				Context:    ctx,
+				PathValues: map[string]string{"name": d.Spec.Name},
+			})
+			if err == nil {
+				log.Println("Deleted deployment", d.Spec.Name)
+			} else {
+				log.Printf("Failed to delete %s deployment: %s\n", d.Spec.Name, err)
+			}
+		}()
+	}
+	if err != nil {
+		log.Fatalf("Failed to delete all deployments gracefully: %s", err)
+	}
 }
 
 type InfoResponse struct {

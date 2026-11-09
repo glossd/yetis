@@ -104,14 +104,14 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		// release go routine for GC
 		return dead
 	}
-	if dep.status == Terminating {
+	if dep.Status == Terminating {
 		return alive
 	}
 
-	var port = dep.spec.LivenessProbe.Port()
+	var port = dep.Spec.LivenessProbe.Port()
 	// Remove 10 milliseconds for everything to process and wait for the new tick.
-	portOpen := isPortOpen(port, dep.spec.LivenessProbe.PeriodDuration()-10*time.Millisecond)
-	tsh, ok := thresholdMap.Load(dep.spec.Name)
+	portOpen := isPortOpen(port, dep.Spec.LivenessProbe.PeriodDuration()-10*time.Millisecond)
+	tsh, ok := thresholdMap.Load(dep.Spec.Name)
 	if !ok {
 		tsh = Threshold{}
 	}
@@ -122,16 +122,16 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		tsh.FailureCount++
 		tsh.SuccessCount = 0
 	}
-	thresholdMap.Store(dep.spec.Name, tsh)
+	thresholdMap.Store(dep.Spec.Name, tsh)
 
-	if tsh.FailureCount >= dep.spec.LivenessProbe.FailureThreshold {
-		p, ok := getDeployment(dep.spec.Name)
-		oldSpec := p.spec
+	if tsh.FailureCount >= dep.Spec.LivenessProbe.FailureThreshold {
+		p, ok := getDeployment(dep.Spec.Name)
+		oldSpec := p.Spec
 		if !ok {
 			log.Printf("Deployment '%s' reached failure threshold, but it doesn't exist\n", oldSpec.Name)
 			return dead
 		}
-		if p.restarts >= restartsLimit {
+		if p.Restarts >= restartsLimit {
 			updateDeploymentStatus(oldSpec.Name, Failed)
 			thresholdMap.Delete(oldSpec.Name)
 			AlertFail(oldSpec.Name)
@@ -141,11 +141,11 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		updateDeploymentStatus(oldSpec.Name, Terminating)
 		ctx, cancelCtx := context.WithTimeout(context.Background(), oldSpec.LivenessProbe.PeriodDuration())
 		defer cancelCtx()
-		err := terminateProcess(ctx, p.pid)
+		err := terminateProcess(ctx, p.Pid)
 		if err != nil {
-			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", oldSpec.Name, p.pid)
+			log.Printf("failed to terminate process, deployment=%s, pid=%d\n", oldSpec.Name, p.Pid)
 		} else {
-			log.Printf("terminated '%s' deployment, pid=%d\n", oldSpec.Name, p.pid)
+			log.Printf("terminated '%s' deployment, pid=%d\n", oldSpec.Name, p.Pid)
 		}
 
 		updateDeploymentStatus(oldSpec.Name, Pending)
@@ -164,7 +164,7 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		_ = updateDeployment(newSpec, pid, logPath, true)
 		thresholdMap.Delete(newSpec.Name)
 		if newSpec.Proxy.Port > 0 {
-			err := proxy.UpdatePortForwarding(newSpec.Proxy.Port, p.spec.LivenessProbe.Port(), newSpec.LivenessProbe.Port())
+			err := proxy.UpdatePortForwarding(newSpec.Proxy.Port, p.Spec.LivenessProbe.Port(), newSpec.LivenessProbe.Port())
 			if err != nil {
 				log.Printf("Liveness restarted deployment, but failed to restart service: %s", err)
 			} else {
@@ -176,13 +176,13 @@ func heartbeat(deploymentName string, restartsLimit int) heartbeatResult {
 		time.Sleep(newSpec.LivenessProbe.InitialDelayDuration())
 		return alive
 	}
-	if tsh.SuccessCount >= dep.spec.LivenessProbe.SuccessThreshold {
-		updateDeploymentStatus(dep.spec.Name, Running)
-		if dep.status != Running { // if it wasn't already running
+	if tsh.SuccessCount >= dep.Spec.LivenessProbe.SuccessThreshold {
+		updateDeploymentStatus(dep.Spec.Name, Running)
+		if dep.Status != Running { // if it wasn't already running
 			// Status could be Pending after Failed. Threshold could be cleaned after Failed.
 			// It will be triggered at the start of the process for example, but AlertRecovery checks if the process failed before.
 			// not specifying the right condition will spam logs with "alert was not triggered"
-			AlertRecovery(dep.spec.Name)
+			AlertRecovery(dep.Spec.Name)
 		}
 	}
 	return alive

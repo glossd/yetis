@@ -17,6 +17,7 @@ type YetisConfig struct {
 }
 
 func (yc YetisConfig) WithDefaults() YetisConfig {
+	// todo actually create /opt/yetis
 	if yc.Logdir == "" {
 		yc.Logdir = "/tmp"
 	}

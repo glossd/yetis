@@ -7,6 +7,7 @@ import (
 )
 
 func TestLivenessFailed(t *testing.T) {
+	resetDeploymentStore(t)
 	config := common.DeploymentSpec{
 		Name:   "liveness",
 		Cmd:    "echo 'Liveness Test'",
@@ -46,6 +47,7 @@ func TestLivenessFailed(t *testing.T) {
 }
 
 func TestLivenessResurrection(t *testing.T) {
+	resetDeploymentStore(t)
 	config := common.DeploymentSpec{
 		Name:   "liveness",
 		Cmd:    "echo 'Liveness Test'",
@@ -81,8 +83,8 @@ func assertD(t *testing.T, status ProcessStatus, restarts int) {
 	t.Helper()
 	d, ok := getDeployment("liveness")
 	assert(t, ok, true)
-	assert(t, d.status, status)
-	assert(t, d.restarts, restarts)
+	assert(t, d.Status, status)
+	assert(t, d.Restarts, restarts)
 }
 
 func BoolPtr(b bool) *bool {
