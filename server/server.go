@@ -28,7 +28,7 @@ func Run(configPath string) {
 		serverConfig = common.ReadServerConfig(configPath)
 	}
 
-	closeDB := initDB("")
+	closeDB := initDB(serverConfig.Dbdir)
 	defer closeDB()
 
 	mux := http.NewServeMux()

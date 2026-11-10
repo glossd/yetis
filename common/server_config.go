@@ -6,19 +6,38 @@ import (
 	"log"
 	"net/smtp"
 	"os"
+	"os/user"
 	"reflect"
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
+const YetisDefaultDir = "/opt/yetis"
+const YetisLogFileName = "yetis.log"
+const YetisDbFileName = "yetis.db"
+
 type YetisConfig struct {
 	Logdir     string
+	Dbdir      string
 	Deployment GlobalDeploymentConfig
 	Alerting   Alerting
 }
 
 func (yc YetisConfig) WithDefaults() YetisConfig {
-	// todo actually create /opt/yetis
+	currentUser, err := user.Current()
+	if err != nil {
+		log.Fatalf("Unable to get current user: %s\n", err)
+	}
+	if currentUser.HomeDir == "root" {
+		if yc.Logdir == "" {
+			yc.Logdir = YetisDefaultDir
+		}
+		if yc.Dbdir == "" {
+			yc.Dbdir = YetisDefaultDir
+		}
+	}
+
 	if yc.Logdir == "" {
+		// for non-root users
 		yc.Logdir = "/tmp"
 	}
 	return yc

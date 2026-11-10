@@ -8,6 +8,9 @@ import (
 func TestYetisConfig(t *testing.T) {
 	in := `
 logdir: /tmp # yetis.log will be stored in there. Defaults to /tmp
+dbdir: /tmp
+deployment:
+  username: appuser
 alerting:
   mail: # add SMPT creds of your smpt server for alerting
     host: smtp.host.com
@@ -20,7 +23,9 @@ alerting:
 `
 
 	res := readServerConfig(bytes.NewBufferString(in))
-	if res.Logdir != "/tmp" || res.Alerting.Mail.Host != "smtp.host.com" || len(res.Alerting.Mail.To) != 1 {
+	if res.Logdir != "/tmp" || res.Dbdir != "/tmp" ||
+		res.Deployment.Username != "appuser" ||
+		res.Alerting.Mail.Host != "smtp.host.com" || len(res.Alerting.Mail.To) != 1 {
 		t.Fatal("Wrong config:", res)
 	}
 	assert(t, res.Alerting.Mail.Validate(), nil)
