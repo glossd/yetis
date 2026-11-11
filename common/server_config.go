@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/smtp"
 	"os"
-	"os/user"
 	"reflect"
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
@@ -23,11 +22,7 @@ type YetisConfig struct {
 }
 
 func (yc YetisConfig) WithDefaults() YetisConfig {
-	currentUser, err := user.Current()
-	if err != nil {
-		log.Fatalf("Unable to get current user: %s\n", err)
-	}
-	if currentUser.HomeDir == "root" {
+	if IsRoot() {
 		if yc.Logdir == "" {
 			yc.Logdir = YetisDefaultDir
 		}

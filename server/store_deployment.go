@@ -7,24 +7,23 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/tidwall/buntdb"
 	"log"
-	"path/filepath"
 	"strings"
 	"time"
 )
 
 var db *buntdb.DB
 
-func initDB(dbDir string) func() error {
+func initDB(dbFilePath string) func() error {
 	var err error
-	if dbDir == "" {
+	if dbFilePath == "" {
 		log.Println("WARNING: No database path specified. Using in-memory setting.")
 		db, err = buntdb.Open(":memory:")
 	} else {
 		// It will be created if it doesn't exist.
-		db, err = buntdb.Open(filepath.Join(dbDir, common.YetisDbFileName))
+		db, err = buntdb.Open(dbFilePath)
 	}
 	if err != nil {
-		log.Fatal("Failed to initialize bunt database", err)
+		log.Fatalf("Failed to initialize bunt database %s: %s\n", "at "+dbFilePath, err)
 	}
 	return db.Close
 }
@@ -152,7 +151,7 @@ func setDeployment(name string, apply func(d deployment) deployment) error {
 	if errors.Is(err, buntdb.ErrNotFound) {
 		return fmt.Errorf("deployment %s doesn't exist", name)
 	}
-	return nil
+	return err
 }
 
 func getDeployment(name string) (deployment, bool) {

@@ -2,13 +2,16 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
+	"github.com/glossd/yetis/common/unix"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -28,7 +31,27 @@ func Run(configPath string) {
 		serverConfig = common.ReadServerConfig(configPath)
 	}
 
-	closeDB := initDB(serverConfig.Dbdir)
+	if err := unix.MkDirIfNotExists(serverConfig.Logdir); err != nil {
+		log.Fatalf("Server log directory %s: %s\n", serverConfig.Logdir, err)
+	}
+
+	var yetisDbFile string
+	if serverConfig.Dbdir != "" {
+		if err := unix.MkDirIfNotExists(serverConfig.Dbdir); err != nil {
+			log.Fatalf("Server db directory %s: %s\n", serverConfig.Logdir, err)
+		}
+
+		yetisDbFile = filepath.Join(serverConfig.Dbdir, common.YetisDbFileName)
+
+		// Clearing the database on restart.
+		// todo reconcile PIDs when the persistence is actually used.
+		err := os.Remove(yetisDbFile)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("Preventing possible data corruption: failed to remove file %s: %s", yetisDbFile, err)
+		}
+	}
+
+	closeDB := initDB(yetisDbFile)
 	defer closeDB()
 
 	mux := http.NewServeMux()

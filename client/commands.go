@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"os/user"
 	"path/filepath"
 	"sigs.k8s.io/yaml"
 	"syscall"
@@ -50,16 +49,7 @@ func StartBackground(pathToConfig string) {
 		c = common.ReadServerConfig(pathToConfig)
 	}
 
-	currentUser, err := user.Current()
-	if err != nil {
-		log.Fatalf("Unable to get current user: %s\n", err)
-	}
-	if currentUser.Username == "root" {
-		err := os.MkdirAll(common.YetisDefaultDir, 0755)
-		if err != nil {
-			log.Fatalf("Failed to create %s directory: %s\n", common.YetisDefaultDir, err)
-		}
-
+	if common.IsRoot() {
 		if c.Deployment.Username == "" {
 			fmt.Println("Warning: deployment.username is not configured, the commands will be executed with root user.")
 			yes := unix.AskForConfirmation("Do you still want to proceed?")
