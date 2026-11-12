@@ -10,14 +10,29 @@ import (
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
+const YetisDefaultDir = "/opt/yetis"
+const YetisLogFileName = "yetis.log"
+const YetisDbFileName = "yetis.db"
+
 type YetisConfig struct {
 	Logdir     string
+	Dbdir      string
 	Deployment GlobalDeploymentConfig
 	Alerting   Alerting
 }
 
 func (yc YetisConfig) WithDefaults() YetisConfig {
+	if IsRoot() {
+		if yc.Logdir == "" {
+			yc.Logdir = YetisDefaultDir
+		}
+		if yc.Dbdir == "" {
+			yc.Dbdir = YetisDefaultDir
+		}
+	}
+
 	if yc.Logdir == "" {
+		// for non-root users
 		yc.Logdir = "/tmp"
 	}
 	return yc

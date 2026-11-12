@@ -6,7 +6,6 @@ import (
 	"github.com/glossd/yetis/common"
 	"github.com/glossd/yetis/common/unix"
 	"github.com/glossd/yetis/server"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -58,7 +57,7 @@ func getUnixProcessOwner(pid int) (string, error) {
 }
 
 func skipIfNotRoot(t *testing.T) {
-	if os.Getuid() != 0 {
+	if !common.IsRoot() {
 		t.SkipNow()
 	}
 }

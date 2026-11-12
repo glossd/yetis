@@ -43,7 +43,7 @@ func CreateOrRestartDeployment(req fetch.Request[common.DeploymentSpec]) (*CRDep
 	// If the deployment already exists, restart it
 	d, count := getDeploymentByRootName(spec.Name)
 	if count > 0 {
-		nameNum := d.spec.Name
+		nameNum := d.Spec.Name
 		err := restartDeployment(req.Context, nameNum, &spec)
 		if err != nil {
 			return nil, err
@@ -158,18 +158,18 @@ type DeploymentInfo struct {
 func ListDeployment() ([]DeploymentInfo, error) {
 	var res []DeploymentInfo
 	rangeDeployments(func(name string, p deployment) {
-		portInfo := strconv.Itoa(p.spec.LivenessProbe.Port())
-		if p.spec.Proxy.Port > 0 {
-			portInfo = strconv.Itoa(p.spec.Proxy.Port) + " to " + strconv.Itoa(p.spec.LivenessProbe.Port())
+		portInfo := strconv.Itoa(p.Spec.LivenessProbe.Port())
+		if p.Spec.Proxy.Port > 0 {
+			portInfo = strconv.Itoa(p.Spec.Proxy.Port) + " to " + strconv.Itoa(p.Spec.LivenessProbe.Port())
 		}
 		res = append(res, DeploymentInfo{
 			Name:         name,
-			Status:       p.status.String(),
-			Pid:          p.pid,
-			Restarts:     p.restarts,
-			Age:          ageSince(p.createdAt),
-			Command:      p.spec.Cmd,
-			LivenessPort: p.spec.LivenessProbe.Port(),
+			Status:       p.Status.String(),
+			Pid:          p.Pid,
+			Restarts:     p.Restarts,
+			Age:          ageSince(p.CreatedAt),
+			Command:      p.Spec.Cmd,
+			LivenessPort: p.Spec.LivenessProbe.Port(),
 			PortInfo:     portInfo,
 		})
 	})
@@ -230,12 +230,12 @@ func GetDeployment(r fetch.Request[fetch.Empty]) (*DeploymentFullInfo, error) {
 
 func deploymentToInfo(p deployment) *DeploymentFullInfo {
 	return &DeploymentFullInfo{
-		Pid:      p.pid,
-		Restarts: p.restarts,
-		Status:   p.status.String(),
-		Age:      ageSince(p.createdAt),
-		LogPath:  p.logPath,
-		Spec:     p.spec,
+		Pid:      p.Pid,
+		Restarts: p.Restarts,
+		Status:   p.Status.String(),
+		Age:      ageSince(p.CreatedAt),
+		LogPath:  p.LogPath,
+		Spec:     p.Spec,
 	}
 }
 
@@ -252,15 +252,18 @@ func DeleteDeployment(r fetch.Request[fetch.Empty]) error {
 
 	updateDeploymentStatus(name, Terminating)
 
-	err := terminateProcess(r.Context, d.pid)
+	err := terminateProcess(r.Context, d.Pid)
 	if err != nil {
 		return err
 	}
 
-	deleteDeployment(name)
+	err = deleteDeployment(name)
+	if err != nil {
+		log.Printf("Deployment was not deleted from bunt db '%s': %v", name, err)
+	}
 	deleteLivenessCheck(name)
-	if d.spec.Proxy.Port > 0 {
-		err := proxy.DeletePortForwarding(d.spec.Proxy.Port, d.spec.LivenessProbe.Port())
+	if d.Spec.Proxy.Port > 0 {
+		err := proxy.DeletePortForwarding(d.Spec.Proxy.Port, d.Spec.LivenessProbe.Port())
 		if err != nil {
 			log.Println("Failed to delete port forwarding:", err)
 		}
@@ -287,10 +290,10 @@ func restartDeployment(ctx context.Context, name string, reapplySpec *common.Dep
 	}
 
 	if reapplySpec != nil {
-		if oldDeployment.spec.Strategy.Type != reapplySpec.Strategy.Type {
+		if oldDeployment.Spec.Strategy.Type != reapplySpec.Strategy.Type {
 			return fmt.Errorf("couldn't restart deployment '%s': strategy.type must be the same, delete the existing one and apply again", reapplySpec.Name)
 		}
-		if oldDeployment.spec.Proxy.Port != reapplySpec.Proxy.Port {
+		if oldDeployment.Spec.Proxy.Port != reapplySpec.Proxy.Port {
 			return fmt.Errorf("couldn't restart deployment '%s': proxy.prot must be the same, delete the existing one and apply again", reapplySpec.Name)
 		}
 	}
@@ -298,16 +301,16 @@ func restartDeployment(ctx context.Context, name string, reapplySpec *common.Dep
 	deleteLivenessCheck(name)
 	var newSpec common.DeploymentSpec
 	var err error
-	if oldDeployment.spec.Strategy.Type == common.RollingUpdate {
+	if oldDeployment.Spec.Strategy.Type == common.RollingUpdate {
 		// todo reapplySpec for apply restart
-		applySpec := oldDeployment.spec
+		applySpec := oldDeployment.Spec
 		if reapplySpec != nil {
 			applySpec = *reapplySpec
 		}
-		applySpec.Name = upgradeNameForRollingUpdate(oldDeployment.spec.Name)
+		applySpec.Name = upgradeNameForRollingUpdate(oldDeployment.Spec.Name)
 		newSpec, err = startDeploymentWithEnv(applySpec, false, true)
 		if err != nil {
-			return fmt.Errorf("rastart failed: the new rolling deployment of '%s' failed to start: %s", oldDeployment.spec.Name, err)
+			return fmt.Errorf("rastart failed: the new rolling deployment of '%s' failed to start: %s", oldDeployment.Spec.Name, err)
 		}
 		startLivenessCheck(newSpec)
 		// check that the new deployment is healthy
@@ -324,7 +327,7 @@ func restartDeployment(ctx context.Context, name string, reapplySpec *common.Dep
 				depStatus, ok := getDeploymentStatus(newSpec.Name)
 				if !ok {
 					// shouldn't happen
-					return fmt.Errorf("rastart failed: new '%s' deployment not found", oldDeployment.spec.Name)
+					return fmt.Errorf("rastart failed: new '%s' deployment not found", oldDeployment.Spec.Name)
 				}
 				if depStatus == Running {
 					break loop
@@ -333,7 +336,7 @@ func restartDeployment(ctx context.Context, name string, reapplySpec *common.Dep
 		}
 
 		// point to the new port
-		err := proxy.UpdatePortForwarding(newSpec.Proxy.Port, oldDeployment.spec.LivenessProbe.Port(), newSpec.LivenessProbe.Port())
+		err := proxy.UpdatePortForwarding(newSpec.Proxy.Port, oldDeployment.Spec.LivenessProbe.Port(), newSpec.LivenessProbe.Port())
 		if err != nil {
 			return fmt.Errorf("started new deployment but failed to update proxy: %s", err)
 		}
@@ -342,17 +345,17 @@ func restartDeployment(ctx context.Context, name string, reapplySpec *common.Dep
 		time.Sleep(50 * time.Millisecond)
 
 		// delete old deployment
-		err = DeleteDeployment(fetch.Request[fetch.Empty]{Context: ctx, PathValues: map[string]string{"name": oldDeployment.spec.Name}})
+		err = DeleteDeployment(fetch.Request[fetch.Empty]{Context: ctx, PathValues: map[string]string{"name": oldDeployment.Spec.Name}})
 		if err != nil {
-			return fmt.Errorf("failed to delete old deployment '%s': %s", oldDeployment.spec.Name, err)
+			return fmt.Errorf("failed to delete old deployment '%s': %s", oldDeployment.Spec.Name, err)
 		}
 
 	} else {
-		err := terminateProcess(ctx, oldDeployment.pid)
+		err := terminateProcess(ctx, oldDeployment.Pid)
 		if err != nil {
 			return fmt.Errorf("failed to terminate deployment's process: %s", err)
 		}
-		var applySpec = oldDeployment.spec
+		var applySpec = oldDeployment.Spec
 		if reapplySpec != nil {
 			applySpec = *reapplySpec
 		}
@@ -362,7 +365,7 @@ func restartDeployment(ctx context.Context, name string, reapplySpec *common.Dep
 		}
 
 		if newSpec.Proxy.Port > 0 {
-			err := proxy.UpdatePortForwarding(newSpec.Proxy.Port, oldDeployment.spec.LivenessProbe.Port(), newSpec.LivenessProbe.Port())
+			err := proxy.UpdatePortForwarding(newSpec.Proxy.Port, oldDeployment.Spec.LivenessProbe.Port(), newSpec.LivenessProbe.Port())
 			if err != nil {
 				return fmt.Errorf("restarted deployment but failed to update proxy port: %s", err)
 			}

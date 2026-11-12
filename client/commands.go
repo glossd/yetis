@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"os/user"
 	"path/filepath"
 	"sigs.k8s.io/yaml"
 	"syscall"
@@ -50,11 +49,7 @@ func StartBackground(pathToConfig string) {
 		c = common.ReadServerConfig(pathToConfig)
 	}
 
-	currentUser, err := user.Current()
-	if err != nil {
-		log.Fatalf("Unable to get current user: %s\n", err)
-	}
-	if currentUser.Username == "root" {
+	if common.IsRoot() {
 		if c.Deployment.Username == "" {
 			fmt.Println("Warning: deployment.username is not configured, the commands will be executed with root user.")
 			yes := unix.AskForConfirmation("Do you still want to proceed?")
@@ -74,7 +69,10 @@ func StartBackground(pathToConfig string) {
 		}
 	}
 
-	logFilePath := filepath.Join(c.Logdir, "yetis.log")
+	if err := unix.MkDirIfNotExists(c.Logdir); err != nil {
+		log.Fatalf("Server log directory %s: %s\n", c.Logdir, err)
+	}
+	logFilePath := filepath.Join(c.Logdir, common.YetisLogFileName)
 	file, err := os.OpenFile(logFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0750)
 	if err != nil {
 		fmt.Println("Failed to open log file at", logFilePath, err)

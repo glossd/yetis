@@ -2,13 +2,16 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/glossd/fetch"
 	"github.com/glossd/yetis/common"
+	"github.com/glossd/yetis/common/unix"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -27,6 +30,25 @@ func Run(configPath string) {
 	if configPath != "" {
 		serverConfig = common.ReadServerConfig(configPath)
 	}
+
+	var yetisDbFile string
+	if serverConfig.Dbdir != "" {
+		if err := unix.MkDirIfNotExists(serverConfig.Dbdir); err != nil {
+			log.Fatalf("Server db directory %s: %s\n", serverConfig.Logdir, err)
+		}
+
+		yetisDbFile = filepath.Join(serverConfig.Dbdir, common.YetisDbFileName)
+
+		// Clearing the database on restart.
+		// todo reconcile PIDs when the persistence is actually used.
+		err := os.Remove(yetisDbFile)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("Preventing possible data corruption: failed to remove file %s: %s", yetisDbFile, err)
+		}
+	}
+
+	closeDB := initDB(yetisDbFile)
+	defer closeDB()
 
 	mux := http.NewServeMux()
 
@@ -69,7 +91,6 @@ func runWithGracefulShutDown(r *http.ServeMux) {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Printf("Shutting down Yetis server %s...\n", common.YetisVersion)
-
 	deleteDeploymentsGracefully()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -88,19 +109,29 @@ func Stop() {
 }
 
 func deleteDeploymentsGracefully() {
-	rangeDeployments(func(name string, p deployment) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		err := DeleteDeployment(fetch.Request[fetch.Empty]{
-			Context:    ctx,
-			PathValues: map[string]string{"name": name},
-		})
-		if err == nil {
-			log.Println("Deleted deployment", name)
-		} else {
-			log.Printf("Failed to delete %s deployment: %s\n", name, err)
-		}
-	})
+	deployments, err := getAllDeployments()
+	if err != nil {
+		log.Printf("Error getting all deployments during graceful shutdown: %s\n", err)
+	}
+
+	for _, d := range deployments {
+		func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			err := DeleteDeployment(fetch.Request[fetch.Empty]{
+				Context:    ctx,
+				PathValues: map[string]string{"name": d.Spec.Name},
+			})
+			if err == nil {
+				log.Println("Deleted deployment", d.Spec.Name)
+			} else {
+				log.Printf("Failed to delete %s deployment: %s\n", d.Spec.Name, err)
+			}
+		}()
+	}
+	if err != nil {
+		log.Fatalf("Failed to delete all deployments gracefully: %s", err)
+	}
 }
 
 type InfoResponse struct {

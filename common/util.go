@@ -5,8 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"time"
 )
+
+func IsRoot() bool {
+	return os.Getuid() == 0
+}
 
 // IsPortOpen tries to establish a TCP connection to the specified address and port
 func IsPortOpen(port int) bool {

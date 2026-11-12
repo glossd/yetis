@@ -125,9 +125,10 @@ You can configure server to send you alerts of your deployment's failure or reco
 For now, yetis only supports mail alerting through SMTP.
 #### Full Yetis Configuration 
 ```yaml
-logdir: /tmp # yetis.log will be stored in there. Defaults to /tmp
 deployment:
   username: appuser # deployment commands (and pre-commands) will be run with the specified user, avoiding root
+logdir: /opt/yetis # yetis.log will be stored in there. Defaults to /opt/yetis, or /tmp for non-root users
+dbdir: /opt/yetis  # yetis.db will be stored in there. Defaults to /opt/yetis, or in-memory for non-root users
 alerting: # Alerts when a managed process fails or recovers
   mail: # add SMPT creds of your smpt server for alerting
     host: smtp.host.com

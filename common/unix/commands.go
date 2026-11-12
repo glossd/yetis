@@ -266,3 +266,22 @@ func GetUserIdAndGroupId(username string) (uint64, uint64, error) {
 	}
 	return uid, gid, nil
 }
+
+func MkDirIfNotExists(path string) error {
+	info, err := os.Stat(path)
+	if err == nil {
+		if info.IsDir() {
+			return nil
+		} else {
+			return fmt.Errorf("path %s exists but is not a directory", path)
+		}
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		err := os.MkdirAll(path, 0750)
+		if err != nil {
+			return fmt.Errorf("error creating directory %s: %v", path, err)
+		}
+		return nil
+	}
+	return err
+}

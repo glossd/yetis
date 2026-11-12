@@ -8,6 +8,11 @@ import (
 	yaml "sigs.k8s.io/yaml/goyaml.v2"
 )
 
+// Why not persist alerting?
+// potentially the server could be shut down during a service failure,
+// and after booting the service could start without failing, making
+// the engineer on duty think it is still down. However, it is better
+// to simply notify of the reboot.
 var alertStore = common.Map[string, bool]{}
 
 func AlertFail(name string) error {
@@ -27,7 +32,7 @@ func AlertFail(name string) error {
 		log.Printf("AlertFail skipped: marshal: %s\n", err)
 		return err
 	}
-	err = serverConfig.Alerting.Send(fmt.Sprintf("Deployment %s Failed", d.spec.Name), info)
+	err = serverConfig.Alerting.Send(fmt.Sprintf("Deployment %s Failed", d.Spec.Name), info)
 	if err != nil {
 		log.Printf("AlertFail skipped: send: %s", err)
 		return err
@@ -53,7 +58,7 @@ func AlertRecovery(name string) error {
 		log.Printf("AlertRecovery skipped: marshal: %s\n", err)
 		return err
 	}
-	err = serverConfig.Alerting.Send(fmt.Sprintf("Deployment %s Recovered", d.spec.Name), string(info))
+	err = serverConfig.Alerting.Send(fmt.Sprintf("Deployment %s Recovered", d.Spec.Name), string(info))
 	if err != nil {
 		log.Printf("AlertRecovery skipped: send: %s", err)
 		return err

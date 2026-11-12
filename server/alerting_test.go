@@ -12,6 +12,7 @@ func TestAlertRecovery_WithoutAlertFail(t *testing.T) {
 }
 
 func TestAlertFailAndRecovery(t *testing.T) {
+	resetDeploymentStore(t)
 	saveDeployment(common.DeploymentSpec{Name: "hello"}, false)
 	err := AlertFail("hello")
 	assert(t, err, nil)
@@ -22,6 +23,7 @@ func TestAlertFailAndRecovery(t *testing.T) {
 }
 
 func TestAlertFail_Double(t *testing.T) {
+	resetDeploymentStore(t)
 	saveDeployment(common.DeploymentSpec{Name: "hello"}, false)
 	err := AlertFail("hello")
 	assert(t, err, nil)
