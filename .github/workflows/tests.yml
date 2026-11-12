@@ -2,6 +2,12 @@ name: Yetis Test
 
 on:
   push:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Makefile'
+      - '.github/workflows/tests.yml'
     branches:
       - '*'
 
