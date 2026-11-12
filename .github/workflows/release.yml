@@ -56,7 +56,7 @@ jobs:
             TAG=$(make version)
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@://github.com"
-            git tag "$TAG"
+            git rev-parse -q --verify "refs/tags/${TAG}" > /dev/null || git tag "$TAG"
             git push origin "$TAG"
             echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 

@@ -6,6 +6,8 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
+      - 'Makefile'
+      - '.github/workflows/tests.yml'
     branches:
       - '*'
 
