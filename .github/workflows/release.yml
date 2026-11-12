@@ -1,0 +1,35 @@
+name: Block Release File
+
+on:
+  pull_request:
+    paths:
+      - 'build/yetis'
+      - 'common/version.go'
+
+jobs:
+  check-release-file:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if build/yetis and common/version.go changed together
+        run: |
+          CHANGED_FILES=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")
+
+          BUILD_YETIS_CHANGED=$(echo "$CHANGED_FILES" | grep -q "^build/yetis$" && echo "true" || echo "false")
+          VERSION_GO_CHANGED=$(echo "$CHANGED_FILES" | grep -q "^common/version.go$" && echo "true" || echo "false")
+
+          if [ "$BUILD_YETIS_CHANGED" != "$VERSION_GO_CHANGED" ]; then
+            if [ "$BUILD_YETIS_CHANGED" = "true" ]; then
+              echo "Error: build/yetis was modified but common/version.go was not updated."
+            else
+              echo "Error: common/version.go was modified but build/yetis was not updated."
+            fi
+            echo "Both files must be changed together."
+            exit 1
+          fi
+
+          echo "Check passed: build/yetis and common/version.go changes are consistent."
