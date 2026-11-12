@@ -51,7 +51,7 @@ jobs:
       - name: Create and push tag
         id: create_tag
         run: |
-            TAG=(make version)
+            TAG=$(make version)
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@://github.com"
             git tag "$TAG"
