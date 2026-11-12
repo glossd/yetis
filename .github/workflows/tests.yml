@@ -2,6 +2,10 @@ name: Yetis Test
 
 on:
   push:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
     branches:
       - '*'
 

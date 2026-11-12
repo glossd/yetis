@@ -15,7 +15,7 @@ You can't have Docker on your VPS but still want Kubernetes features.
 
 ## Installing
 ```shell
-sudo wget -O /usr/local/bin/yetis https://github.com/glossd/yetis/raw/refs/heads/master/build/yetis && chmod +x /usr/local/bin/yetis 
+sudo wget -O /usr/local/bin/yetis https://github.com/glossd/yetis/releases/latest/download/yetis && chmod +x /usr/local/bin/yetis 
 ```
 ## Commands
 ### Start Yetis server
