@@ -31,10 +31,6 @@ func Run(configPath string) {
 		serverConfig = common.ReadServerConfig(configPath)
 	}
 
-	if err := unix.MkDirIfNotExists(serverConfig.Logdir); err != nil {
-		log.Fatalf("Server log directory %s: %s\n", serverConfig.Logdir, err)
-	}
-
 	var yetisDbFile string
 	if serverConfig.Dbdir != "" {
 		if err := unix.MkDirIfNotExists(serverConfig.Dbdir); err != nil {

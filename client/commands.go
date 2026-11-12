@@ -69,6 +69,9 @@ func StartBackground(pathToConfig string) {
 		}
 	}
 
+	if err := unix.MkDirIfNotExists(c.Logdir); err != nil {
+		log.Fatalf("Server log directory %s: %s\n", c.Logdir, err)
+	}
 	logFilePath := filepath.Join(c.Logdir, common.YetisLogFileName)
 	file, err := os.OpenFile(logFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0750)
 	if err != nil {
